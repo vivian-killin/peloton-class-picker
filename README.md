@@ -10,15 +10,21 @@ There are two versions in here.
 
 Type in a few artists, songs, or genres you love. It searches a snapshot of the Peloton
 class library — 1,800 classes and their playlists — and ranks the ones whose music
-matches, with the matching songs listed. Filter by class type, length, and instructor.
-"Surprise me" picks one at random from the top matches.
+matches. Every result explains *why* it matched: which songs, by which artist you named,
+and which genre tags landed.
+
+Filters: **class type** (multi-select — pick Cycling and Pilates together), **category**
+(a sub-filter that narrows within the types you picked — Power Zone, Intervals, Barre,
+Full Body, and so on), **length**, and **instructor**. "Surprise me" picks one at random
+from the top matches.
 
 It's a single static page. Everything runs in your browser: no account, no server, no
 data leaves the page. Classes you mark "Done / hide" are remembered in your browser only.
 
 The class library is a snapshot baked into the repo (`classes.json`), not a live feed —
 Peloton's catalogue needs a member login, so a public site can't query it directly.
-Refresh it any time with `python3 peloton_picker.py export` (see below).
+**It refreshes itself every Monday morning** (see below), and the footer shows the date
+of the snapshot you're looking at.
 
 ## 2. The command-line tool — your account, your history
 
@@ -114,15 +120,40 @@ songs are in it, and a direct link to open the class.
 
 Run `sync-history` again every couple of weeks so the no-repeats filter stays current.
 
-### Refreshing the website's class library
+### The website's class library refreshes itself
+
+A macOS scheduled job runs `refresh.sh` **every Monday at 7am** (or at the next wake, if
+the Mac is asleep). It re-exports the catalogue, and if anything actually changed it
+commits and pushes — GitHub Pages then republishes within a couple of minutes. An
+unchanged catalogue makes no commit, so the history stays meaningful.
+
+Run it by hand any time:
 
 ```bash
-python3 peloton_picker.py export --pages 2 --generated "$(date +%Y-%m-%d)"
+cd ~/peloton-picker && ./refresh.sh
 ```
 
-Rewrites `classes.json` from the current catalogue, then commit and push. Playlists are
-cached locally, so re-running it is quick. The export contains only Peloton's public class
-metadata — no history, no preferences, nothing about your account.
+Logs are at `~/.peloton-picker/refresh.log`. The export contains only Peloton's public
+class metadata — no history, no preferences, nothing about your account.
+
+To change the schedule, edit `StartCalendarInterval` in
+`~/Library/LaunchAgents/com.peloton-picker.refresh.plist` (`Weekday` 0–6, Sunday is 0),
+then:
+
+```bash
+launchctl bootout gui/$(id -u)/com.peloton-picker.refresh && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.peloton-picker.refresh.plist
+```
+
+To stop the automation entirely:
+
+```bash
+launchctl bootout gui/$(id -u)/com.peloton-picker.refresh && rm ~/Library/LaunchAgents/com.peloton-picker.refresh.plist
+```
+
+**Why the project lives at `~/peloton-picker`:** macOS blocks scheduled background jobs
+from reading protected folders like `~/Documents`, so the weekly refresh could not run
+from there. A shortcut at the old `~/Documents/Claude/Projects/peloton-picker` path still
+works for opening the folder.
 
 ## Publishing it to GitHub
 
