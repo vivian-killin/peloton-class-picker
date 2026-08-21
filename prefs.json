@@ -1,0 +1,279 @@
+{
+  "_comment": "Edit this file freely \u2014 it is the whole config. Nothing here is sent anywhere except as filters against the Peloton catalogue.",
+  "avoid_repeats": true,
+  "skip_explicit": false,
+  "catalog_sort": "top_rated",
+  "playlist_depth": 60,
+  "default_tracks": [
+    "cycling",
+    "strength",
+    "core",
+    "stretching"
+  ],
+  "instructors": {
+    "Rebecca Kennedy": 3.0
+  },
+  "music": {
+    "genre_weights": {
+      "pop": 3.0,
+      "throwback": 1.0,
+      "hip hop": 0.5,
+      "rock": 0.5,
+      "club bangers": 0.5
+    },
+    "liked_artists": [
+      "Olivia Dean",
+      "Justin Bieber",
+      "Taylor Swift",
+      "Beyonc\u00e9",
+      "Britney Spears",
+      "Christina Aguilera",
+      "Destiny's Child",
+      "P!Nk",
+      "Ariana Grande",
+      "Sabrina Carpenter",
+      "Dua Lipa",
+      "Ed Sheeran",
+      "Kelly Clarkson",
+      "Drake",
+      "Whitney Houston",
+      "Calvin Harris",
+      "*NSYNC",
+      "David Guetta",
+      "Janet Jackson",
+      "Miley Cyrus",
+      "Lorde",
+      "Madonna",
+      "Avril Lavigne",
+      "Charli XCX",
+      "The Weeknd",
+      "Sia",
+      "Demi Lovato",
+      "Coldplay",
+      "Harry Styles",
+      "Lil Wayne",
+      "Mariah Carey",
+      "Busta Rhymes",
+      "Robyn",
+      "Ludacris",
+      "Pitbull",
+      "JAY-Z",
+      "Hilary Duff",
+      "Fred again..",
+      "Gwen Stefani",
+      "Lady Gaga",
+      "Katy Perry",
+      "50 Cent",
+      "Avicii",
+      "Usher",
+      "TLC",
+      "John Legend",
+      "OneRepublic",
+      "DMX",
+      "Alicia Keys",
+      "Moby",
+      "John Mayer",
+      "Bon Jovi",
+      "The Black Eyed Peas",
+      "Justin Timberlake",
+      "R\u00dcF\u00dcS DU SOL",
+      "Tove Lo",
+      "Pharrell Williams",
+      "Jess Glynne",
+      "RAYE",
+      "Khalid",
+      "Ne-Yo",
+      "Ciara",
+      "Kendrick Lamar",
+      "Fleetwood Mac",
+      "Ginuwine",
+      "DJ Khaled",
+      "Selena Gomez",
+      "Will.I.Am",
+      "B.o.B.",
+      "Sofi Tukker",
+      "John Summit",
+      "Alex Warren",
+      "Disclosure",
+      "Chappell Roan",
+      "Nelly",
+      "Nicki Minaj"
+    ],
+    "liked_songs": [],
+    "disliked_artists": []
+  },
+  "weights": {
+    "music_default": 1.0,
+    "liked_song_cap": 8,
+    "disliked_song_penalty": 1.0,
+    "rating": 4.0,
+    "popularity": 0.4,
+    "difficulty_miss": 0.6,
+    "repeat_instructor_penalty": 2.5,
+    "repeat_type_penalty": 1.2,
+    "repeat_track_penalty": 3.0
+  },
+  "tracks": {
+    "cycling": {
+      "browse_category": "cycling",
+      "durations": [
+        15,
+        20,
+        30
+      ],
+      "min_liked_songs": 4,
+      "music_weight": 3.0,
+      "playlist_depth": 90
+    },
+    "strength": {
+      "browse_category": "strength",
+      "durations": [
+        10,
+        15,
+        20,
+        30
+      ],
+      "min_liked_songs": 0,
+      "music_weight": 0.75,
+      "exclude_type_keywords": [
+        "cardio",
+        "hiit",
+        "plyo",
+        "tabata",
+        "dance",
+        "bootcamp",
+        "boxing"
+      ]
+    },
+    "core": {
+      "browse_category": "strength",
+      "durations": [
+        5,
+        10,
+        15,
+        20
+      ],
+      "min_liked_songs": 0,
+      "music_weight": 0.75,
+      "include_type_keywords": [
+        "core",
+        "abs"
+      ]
+    },
+    "pilates": {
+      "browse_category": "strength",
+      "durations": [
+        10,
+        15,
+        20,
+        30
+      ],
+      "min_liked_songs": 0,
+      "music_weight": 0.75,
+      "include_type_keywords": [
+        "pilates"
+      ]
+    },
+    "barre": {
+      "browse_category": "strength",
+      "durations": [
+        10,
+        15,
+        20,
+        30
+      ],
+      "min_liked_songs": 0,
+      "music_weight": 0.75,
+      "include_type_keywords": [
+        "barre"
+      ]
+    },
+    "hikes": {
+      "browse_category": "walking",
+      "durations": [
+        20,
+        30
+      ],
+      "min_liked_songs": 0,
+      "music_weight": 1.0,
+      "include_type_keywords": [
+        "hike"
+      ]
+    },
+    "walking": {
+      "browse_category": "walking",
+      "durations": [
+        20,
+        30
+      ],
+      "min_liked_songs": 0,
+      "music_weight": 1.0
+    },
+    "running": {
+      "browse_category": "running",
+      "durations": [
+        20,
+        30
+      ],
+      "min_liked_songs": 2,
+      "music_weight": 1.5
+    },
+    "cardio": {
+      "browse_category": "cardio",
+      "durations": [
+        10,
+        15,
+        20,
+        30
+      ],
+      "min_liked_songs": 2,
+      "music_weight": 1.5
+    },
+    "stretching": {
+      "browse_category": "stretching",
+      "durations": [
+        5,
+        10
+      ],
+      "min_liked_songs": 0,
+      "music_weight": 0.25
+    }
+  },
+  "week_plan": [
+    {
+      "day": "Monday",
+      "track": "cycling",
+      "minutes": "15,20,30"
+    },
+    {
+      "day": "Tuesday",
+      "track": "strength",
+      "minutes": "20,30"
+    },
+    {
+      "day": "Wednesday",
+      "track": "cycling",
+      "minutes": "15,20,30"
+    },
+    {
+      "day": "Thursday",
+      "track": "pilates",
+      "minutes": "20,30"
+    },
+    {
+      "day": "Friday",
+      "track": "strength",
+      "minutes": "20,30"
+    },
+    {
+      "day": "Saturday",
+      "track": "hikes",
+      "minutes": "20,30"
+    },
+    {
+      "day": "Sunday",
+      "track": "stretching",
+      "minutes": "5,10"
+    }
+  ]
+}
