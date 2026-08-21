@@ -28,14 +28,13 @@
   label{display:block;font-weight:650;font-size:12px;margin-bottom:8px;
         text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)}
   .hint{font-size:13px;color:var(--muted);margin:-4px 0 9px}
-  textarea,select,input{width:100%;padding:11px 13px;border-radius:10px;
+  textarea,select{width:100%;padding:11px 13px;border-radius:10px;
         border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
-  textarea{min-height:96px;resize:vertical}
+  textarea{min-height:90px;resize:vertical}
   .row{margin-bottom:20px}
   .row:last-of-type{margin-bottom:0}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media (max-width:560px){.grid{grid-template-columns:1fr}}
   .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chips.scroll{max-height:132px;overflow-y:auto;padding-right:4px}
   .chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);
         background:var(--chip);cursor:pointer;user-select:none;font-size:14px}
   .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:650}
@@ -43,15 +42,22 @@
   button{font:inherit;cursor:pointer;border-radius:11px;padding:14px;border:1px solid var(--line)}
   .go{flex:2;background:var(--accent);color:var(--accent-ink);border:0;font-weight:700;font-size:16px}
   .alt{flex:1;background:transparent;color:var(--ink)}
+  .clear{background:none;border:0;padding:0;font-size:12px;color:var(--accent);
+         text-transform:none;letter-spacing:0;font-weight:600;float:right}
   .result{padding:20px}
   .result h2{margin:0 0 5px;font-size:19px;letter-spacing:-0.01em}
   .meta{color:var(--muted);font-size:14px}
   .badges{margin-top:10px}
   .badge{display:inline-block;background:var(--chip);border-radius:6px;padding:3px 9px;
          font-size:12px;font-weight:650;margin:0 6px 6px 0}
-  .badge.hit{background:var(--hit-bg);color:var(--hit)}
+  .why{margin-top:14px;padding:13px 15px;background:var(--hit-bg);border-radius:10px}
+  .why h3{margin:0 0 7px;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:var(--hit)}
+  .why ul{margin:0;padding-left:18px}
+  .why li{font-size:14px;padding:2px 0}
+  .why .term{font-weight:700}
   .songs{list-style:none;padding:0;margin:12px 0 0}
   .songs li{padding:5px 0;border-top:1px solid var(--line);font-size:14px}
+  .songs .tag{color:var(--muted);font-size:12px}
   .actions{display:flex;gap:10px;margin-top:16px;align-items:center}
   a.open{flex:1;text-align:center;padding:11px;background:var(--accent);color:var(--accent-ink);
          border-radius:9px;text-decoration:none;font-weight:700;font-size:15px}
@@ -77,20 +83,25 @@
       <textarea id="loves" placeholder="Taylor Swift&#10;Fleetwood Mac&#10;throwback pop&#10;Levitating"></textarea>
     </div>
 
-    <div class="grid">
-      <div class="row">
-        <label for="discipline">Class type</label>
-        <select id="discipline"><option value="">Any</option></select>
-      </div>
-      <div class="row">
-        <label for="instructor">Instructor</label>
-        <select id="instructor"><option value="">Anyone</option></select>
-      </div>
+    <div class="row">
+      <label>Class type <button class="clear" data-clear="disciplines">clear</button></label>
+      <div class="chips" id="disciplines"></div>
+    </div>
+
+    <div class="row" id="categoryRow">
+      <label>Category <button class="clear" data-clear="categories">clear</button></label>
+      <p class="hint" id="categoryHint">Narrows within the class types above.</p>
+      <div class="chips scroll" id="categories"></div>
     </div>
 
     <div class="row">
-      <label>Length</label>
+      <label>Length <button class="clear" data-clear="durations">clear</button></label>
       <div class="chips" id="durations"></div>
+    </div>
+
+    <div class="row">
+      <label for="instructor">Instructor</label>
+      <select id="instructor"><option value="">Anyone</option></select>
     </div>
 
     <div class="buttons">
@@ -99,7 +110,7 @@
     </div>
   </div>
 
-  <div id="out"><div class="status" id="loading">Loading the class library…</div></div>
+  <div id="out"><div class="status">Loading the class library…</div></div>
 
   <footer>
     <p id="stamp"></p>
@@ -111,7 +122,7 @@
 </div>
 
 <script>
-let DATA = null, ARTISTS = [], NORM_ARTISTS = [], LAST = [];
+let DATA = null, ARTISTS = [], NORM_ARTISTS = [];
 const HIDDEN_KEY = 'pcp-hidden';
 
 const GENRES = ['pop','hip hop','rap','rock','country','latin','edm','dance','house','techno',
@@ -119,11 +130,17 @@ const GENRES = ['pop','hip hop','rap','rock','country','latin','edm','dance','ho
   'k-pop','musicals','broadway','holiday','christmas','throwback','club','bangers','emo','folk',
   '60s','70s','80s','90s','2000s','2010s','2020s'];
 
-const norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+const norm = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()
   .replace(/\(.*?\)|\[.*?\]/g,' ')
   .replace(/[^a-z0-9& ]+/g,' ')
   .replace(/^\s*the\s+/,'')
   .replace(/\s+/g,' ').trim();
+
+const rx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const wordMatch = (hay, needle) =>
+  hay === needle || new RegExp('(^|\\s)' + rx(needle) + '(\\s|$)').test(hay);
+
+const titleCase = s => s.replace(/_/g,' ').replace(/\b\w/g, m => m.toUpperCase());
 
 const hidden = () => new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'));
 function hide(id) {
@@ -131,31 +148,55 @@ function hide(id) {
   localStorage.setItem(HIDDEN_KEY, JSON.stringify([...h]));
 }
 
+const picked = id => [...document.querySelectorAll('#' + id + ' .chip.on')].map(c => c.dataset.value);
+
+function makeChips(containerId, values, labeller) {
+  const box = document.getElementById(containerId);
+  const was = new Set(picked(containerId));
+  box.innerHTML = '';
+  values.forEach(v => {
+    const el = document.createElement('div');
+    el.className = 'chip' + (was.has(String(v)) ? ' on' : '');
+    el.textContent = labeller ? labeller(v) : v;
+    el.dataset.value = v;
+    el.onclick = () => { el.classList.toggle('on'); if (containerId === 'disciplines') refreshCategories(); };
+    box.appendChild(el);
+  });
+}
+
+function refreshCategories() {
+  const chosen = new Set(picked('disciplines'));
+  const counts = new Map();
+  DATA.classes.forEach(c => {
+    if (chosen.size && !chosen.has(c.b || c.f)) return;
+    c.c.forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
+  });
+  // drop the long tail so the list stays usable
+  const cats = [...counts.entries()].filter(([, n]) => n >= 3)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+  makeChips('categories', cats);
+  document.getElementById('categoryHint').textContent = chosen.size
+    ? `${cats.length} categories within ${[...chosen].map(titleCase).join(', ')}.`
+    : 'Narrows within the class types above. Pick a class type to shorten this list.';
+}
+
 fetch('classes.json').then(r => r.json()).then(d => {
   DATA = d;
   ARTISTS = d.artists;
   NORM_ARTISTS = d.artists.map(norm);
 
-  const disciplines = [...new Set(d.classes.map(c => c.f))].sort();
-  const dsel = document.getElementById('discipline');
-  disciplines.forEach(v => dsel.add(new Option(v.replace(/_/g,' ').replace(/\b\w/g, m => m.toUpperCase()), v)));
+  makeChips('disciplines', [...new Set(d.classes.map(c => c.b || c.f))].sort(), titleCase);
+  refreshCategories();
+  makeChips('durations', [...new Set(d.classes.map(c => c.d))].filter(n => n > 0)
+    .sort((a, b) => a - b), v => v + ' min');
 
-  const instructors = [...new Set(d.classes.map(c => c.n).filter(Boolean))].sort();
   const isel = document.getElementById('instructor');
-  instructors.forEach(v => isel.add(new Option(v, v)));
-
-  const lengths = [...new Set(d.classes.map(c => c.d))].filter(n => n > 0).sort((a,b) => a-b);
-  const box = document.getElementById('durations');
-  lengths.forEach(v => {
-    const el = document.createElement('div');
-    el.className = 'chip'; el.textContent = v + ' min'; el.dataset.value = v;
-    el.onclick = () => el.classList.toggle('on');
-    box.appendChild(el);
-  });
+  [...new Set(d.classes.map(c => c.n).filter(Boolean))].sort()
+    .forEach(v => isel.add(new Option(v, v)));
 
   document.getElementById('stamp').textContent =
     `${d.classes.length.toLocaleString()} classes in the library` +
-    (d.generated ? ` · snapshot taken ${d.generated}` : '');
+    (d.generated ? ` · updated ${d.generated}` : '');
   document.getElementById('out').innerHTML =
     '<div class="status">Tell it what you like, then hit Find classes.</div>';
 }).catch(() => {
@@ -163,34 +204,36 @@ fetch('classes.json').then(r => r.json()).then(d => {
     '<div class="status">Couldn\'t load the class library. Try reloading.</div>';
 });
 
+document.querySelectorAll('.clear').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#' + btn.dataset.clear + ' .chip.on')
+      .forEach(c => c.classList.remove('on'));
+    if (btn.dataset.clear === 'disciplines') refreshCategories();
+  };
+});
+
 function parseLoves(text) {
-  const terms = text.split(/[\n,]+/).map(t => norm(t)).filter(t => t.length > 1);
+  const terms = [...new Set(text.split(/[\n,]+/).map(norm).filter(t => t.length > 1))];
   const genres = [], names = [];
   terms.forEach(t => (GENRES.includes(t) || GENRES.some(g => t.includes(g)) ? genres : names).push(t));
   return {genres, names};
 }
 
-const rx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const wordMatch = (hay, needle) =>
-  hay === needle || new RegExp('(^|\\s)' + rx(needle) + '(\\s|$)').test(hay);
-
-function artistMatches(names) {
-  // Map each loved term to the artist ids it plausibly refers to. Matching is on whole
-  // words so "sia" doesn't swallow "Anastasia" and "love" doesn't match half the library.
-  const ids = new Set();
+function artistTerms(names) {
+  // artist id -> the thing you typed that it matched, so results can say why
+  const map = new Map();
   names.forEach(term => {
     NORM_ARTISTS.forEach((a, i) => {
-      if (a === term) ids.add(i);
-      else if (term.length >= 5 && wordMatch(a, term)) ids.add(i);
-      else if (a.length >= 5 && wordMatch(term, a)) ids.add(i);
+      if (map.has(i)) return;
+      if (a === term) map.set(i, term);
+      else if (term.length >= 5 && wordMatch(a, term)) map.set(i, term);
+      else if (a.length >= 5 && wordMatch(term, a)) map.set(i, term);
     });
   });
-  return ids;
+  return map;
 }
 
 function genreHitsFor(hay, genres) {
-  // "90s hip hop" should still land when a title says "90s Hip Hop"; if the whole
-  // phrase misses, fall back to every genre word inside it having to appear.
   const hits = [];
   genres.forEach(t => {
     if (hay.includes(t)) { hits.push(t); return; }
@@ -200,57 +243,93 @@ function genreHitsFor(hay, genres) {
   return hits;
 }
 
-function score(loves) {
-  const {genres, names} = parseLoves(loves);
-  const wantedArtists = artistMatches(names);
-  const disc = document.getElementById('discipline').value;
+function search() {
+  const {genres, names} = parseLoves(document.getElementById('loves').value);
+  const aTerms = artistTerms(names);
+  const disc = new Set(picked('disciplines'));
+  const cats = new Set(picked('categories'));
+  const lens = new Set(picked('durations').map(Number));
   const inst = document.getElementById('instructor').value;
-  const lens = [...document.querySelectorAll('.chip.on')].map(c => +c.dataset.value);
   const skip = hidden();
+  const asked = names.length || genres.length;
 
   const out = [];
   for (const c of DATA.classes) {
     if (skip.has(c.i)) continue;
-    if (disc && c.f !== disc) continue;
+    if (disc.size && !disc.has(c.b || c.f)) continue;
+    if (cats.size && !c.c.some(t => cats.has(t))) continue;
+    if (lens.size && !lens.has(c.d)) continue;
     if (inst && c.n !== inst) continue;
-    if (lens.length && !lens.includes(c.d)) continue;
 
-    const hits = [];
+    const songs = [];
+    const byArtist = new Map();   // artist name -> term you typed
+    const byTitle = [];
     for (const [title, aids] of c.s) {
-      const byArtist = aids.some(a => wantedArtists.has(a));
-      const byTitle = names.some(t => t.length > 3 && norm(title).includes(t));
-      if (byArtist || byTitle) {
-        hits.push(`${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ') || '?'}`);
+      const hitIds = aids.filter(a => aTerms.has(a));
+      if (hitIds.length) {
+        hitIds.forEach(a => byArtist.set(ARTISTS[a], aTerms.get(a)));
+        songs.push({label: `${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ')}`,
+                    why: 'artist', term: aTerms.get(hitIds[0])});
+        continue;
+      }
+      const t = names.find(n => n.length > 3 && norm(title).includes(n));
+      if (t) {
+        songs.push({label: `${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ') || '?'}`,
+                    why: 'song', term: t});
+        byTitle.push(t);
       }
     }
 
     const hay = norm(c.t + ' ' + c.c.join(' '));
-    const genreHits = genreHitsFor(hay, genres);
+    const gHits = genreHitsFor(hay, genres);
+    if (asked && !songs.length && !gHits.length) continue;
 
-    let s = hits.length * 3 + genreHits.length * 2 + (c.r || 0) * 2;
-    if (!hits.length && !genreHits.length && (names.length || genres.length)) continue;
-    out.push({c, hits, genreHits, s});
+    out.push({
+      c, songs, gHits,
+      artists: [...byArtist.keys()],
+      titleTerms: [...new Set(byTitle)],
+      score: songs.length * 3 + gHits.length * 2 + (c.r || 0) * 2,
+    });
   }
-  out.sort((a, b) => b.s - a.s);
+  out.sort((a, b) => b.score - a.score);
   return out;
+}
+
+function reasons(m) {
+  const r = [];
+  if (m.artists.length) {
+    const n = m.songs.filter(s => s.why === 'artist').length;
+    r.push(`<b>${n}</b> song${n > 1 ? 's' : ''} by <span class="term">${esc(m.artists.slice(0,4).join(', '))}</span>${m.artists.length > 4 ? ' and others you named'
+        : m.artists.length > 1 ? ' — artists you named' : ' — an artist you named'}`);
+  }
+  m.titleTerms.forEach(t =>
+    r.push(`Plays a song you named — <span class="term">${esc(t)}</span>`));
+  m.gHits.forEach(g =>
+    r.push(`Class is tagged <span class="term">${esc(g)}</span>, which you asked for`));
+  if (!r.length) r.push('No music filters applied — ranked by how highly members rated it');
+  return r;
 }
 
 function card(m) {
   const c = m.c;
   const badges = [];
-  if (m.hits.length) badges.push([`${m.hits.length} song${m.hits.length>1?'s':''} you like`, true]);
-  m.genreHits.forEach(g => badges.push([g, true]));
-  if (c.r) badges.push([Math.round(c.r*100) + '% liked', false]);
-  if (c.x) badges.push(['difficulty ' + c.x, false]);
-  return `<div class="card result" data-id="${c.i}">
+  if (c.r) badges.push(Math.round(c.r * 100) + '% liked');
+  if (c.x) badges.push('difficulty ' + c.x);
+  if (c.c.length) badges.push(c.c.slice(0, 2).join(' · '));
+  return `<div class="card result" data-id="${esc(c.i)}">
     <h2>${esc(c.t)}</h2>
-    <div class="meta">${esc(c.n || 'Peloton')} · ${c.d} min · ${esc(c.f.replace(/_/g,' '))}${c.a ? ' · ' + esc(c.a) : ''}</div>
-    <div class="badges">${badges.map(([b,hit]) => `<span class="badge${hit?' hit':''}">${esc(b)}</span>`).join('')}</div>
-    ${m.hits.length ? '<ul class="songs">' + m.hits.slice(0,6).map(s => '<li>♫ ' + esc(s) + '</li>').join('') + '</ul>' : ''}
+    <div class="meta">${esc(c.n || 'Peloton')} · ${c.d} min · ${esc(titleCase(c.b || c.f))}${c.a ? ' · ' + esc(c.a) : ''}</div>
+    <div class="badges">${badges.map(b => `<span class="badge">${esc(b)}</span>`).join('')}</div>
+    <div class="why">
+      <h3>Why this matched</h3>
+      <ul>${reasons(m).map(x => '<li>' + x + '</li>').join('')}</ul>
+    </div>
+    ${m.songs.length ? '<ul class="songs">' + m.songs.slice(0, 8).map(s =>
+        `<li>♫ ${esc(s.label)} <span class="tag">· matched “${esc(s.term)}”</span></li>`).join('') + '</ul>' : ''}
     <div class="actions">
       <a class="open" target="_blank" rel="noopener"
          href="https://members.onepeloton.com/classes/${encodeURIComponent(c.f)}?modal=classDetailsModal&classId=${encodeURIComponent(c.i)}">Open in Peloton</a>
-      <button class="hide" onclick="dismiss('${c.i}')">Done / hide</button>
+      <button class="hide" onclick="dismiss('${esc(c.i)}')">Done / hide</button>
     </div>
   </div>`;
 }
@@ -272,15 +351,10 @@ function show(matches, limit) {
     + shown.map(card).join('');
 }
 
-document.getElementById('go').onclick = () => {
-  LAST = score(document.getElementById('loves').value);
-  show(LAST, 15);
-};
-
+document.getElementById('go').onclick = () => show(search(), 15);
 document.getElementById('surprise').onclick = () => {
-  const pool = score(document.getElementById('loves').value).slice(0, 40);
-  if (!pool.length) { show([], 0); return; }
-  show([pool[Math.floor(Math.random() * pool.length)]], 1);
+  const pool = search().slice(0, 40);
+  show(pool.length ? [pool[Math.floor(Math.random() * pool.length)]] : [], 1);
 };
 
 function esc(s) {

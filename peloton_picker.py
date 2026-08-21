@@ -1070,11 +1070,13 @@ def cmd_export(args) -> int:
         {cfg["browse_category"] for cfg in prefs.tracks.values()})
 
     seen: dict[str, Klass] = {}
-    for cat in categories:
+    browse: dict[str, str] = {}  # Peloton's own nav category — pilates and hiking are
+    for cat in categories:       # their own, but report a discipline of strength/walking
         print(f"Fetching {cat}...", file=sys.stderr)
         for k in fetch_catalog(client, cat, args.pages, "top_rated"):
             if k.ride_id and k.ride_id not in seen:
                 seen[k.ride_id] = k
+                browse[k.ride_id] = cat
     print(f"{len(seen)} unique classes.", file=sys.stderr)
 
     playlists = fetch_playlists(client, conn, list(seen))
@@ -1104,6 +1106,7 @@ def cmd_export(args) -> int:
             "n": k.instructor,
             "d": k.duration_min,
             "f": k.discipline,
+            "b": browse.get(rid, k.discipline),
             "c": k.class_types,
             "r": round(k.rating, 3),
             "x": round(k.difficulty, 1),
@@ -1120,6 +1123,17 @@ def cmd_export(args) -> int:
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.only_if_changed and out.exists():
+        try:
+            old = json.loads(out.read_text())
+        except json.JSONDecodeError:
+            old = {}
+        # ignore the date stamp, or the weekly job would commit an identical file
+        if (old.get("classes"), old.get("artists")) == (payload["classes"], payload["artists"]):
+            print(f"{out} is already up to date — nothing written.")
+            return 3
+
     out.write_text(json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
     kb = out.stat().st_size / 1024
     with_songs = sum(1 for c in classes if c["s"])
@@ -1172,6 +1186,8 @@ def main() -> int:
     sp.add_argument("--pages", type=int, default=2, help="pages per category (100 each)")
     sp.add_argument("--categories", nargs="*")
     sp.add_argument("--generated", default="", help="date stamp to embed")
+    sp.add_argument("--only-if-changed", action="store_true",
+                    help="exit 3 without writing if the catalogue hasn't changed")
     sp.set_defaults(func=cmd_export)
 
     sp = sub.add_parser("categories", help="list valid browse categories")
