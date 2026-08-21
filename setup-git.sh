@@ -46,7 +46,9 @@ fi
 
 git remote remove origin 2>/dev/null || true
 # Prefer SSH when the key is already registered with GitHub; fall back to HTTPS.
-if ssh -o BatchMode=yes -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+# `ssh -T git@github.com` exits 1 even on success, so capture first, then test.
+SSH_PROBE="$(ssh -o BatchMode=yes -T git@github.com 2>&1 || true)"
+if printf '%s' "$SSH_PROBE" | grep -q "successfully authenticated"; then
   git remote add origin "git@github.com:$USERNAME/$REPO.git"
 else
   git remote add origin "https://github.com/$USERNAME/$REPO.git"
