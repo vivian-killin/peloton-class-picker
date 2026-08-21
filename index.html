@@ -63,6 +63,13 @@
          border-radius:9px;text-decoration:none;font-weight:700;font-size:15px}
   .hide{padding:11px 14px;background:transparent;color:var(--muted);font-size:14px}
   .status{color:var(--muted);text-align:center;padding:26px 0}
+  .empty h3{margin:0 0 6px;font-size:18px;letter-spacing:-0.01em}
+  .empty p{margin:0 0 16px;color:var(--muted);font-size:14px}
+  .empty .opt{display:flex;gap:12px;align-items:center;justify-content:space-between;
+              padding:12px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+  .empty .opt span{font-size:14px;flex:1;min-width:200px}
+  .empty .opt button{padding:9px 14px;font-size:14px;background:var(--chip);
+                     border:1px solid var(--line);color:var(--ink);white-space:nowrap}
   .count{color:var(--muted);font-size:14px;margin:24px 0 12px}
   footer{margin-top:44px;color:var(--muted);font-size:13px;line-height:1.6;text-align:center}
   footer a{color:var(--muted)}
@@ -78,9 +85,11 @@
   <div class="card">
     <div class="row">
       <label for="loves">Music you love</label>
-      <p class="hint">Artists, songs, or a vibe — one per line or separated by commas.
-        Try “Beyoncé, 90s hip hop, Dua Lipa, Mr. Brightside”.</p>
-      <textarea id="loves" placeholder="Taylor Swift&#10;Fleetwood Mac&#10;throwback pop&#10;Levitating"></textarea>
+      <p class="hint">Artists, songs, or a vibe. Separate with commas to find classes with
+        <b>any</b> of them — or join two with <b>and</b> to require <b>both</b>.<br>
+        Try “Shake It Off, Jonas Brothers, Hilary Duff, 2010s Disney”,
+        or “Shake It Off and Jonas Brothers”.</p>
+      <textarea id="loves" placeholder="Shake It Off, Jonas Brothers, Hilary Duff, 2010s Disney"></textarea>
     </div>
 
     <div class="row">
@@ -88,9 +97,9 @@
       <div class="chips" id="disciplines"></div>
     </div>
 
-    <div class="row" id="categoryRow">
+    <div class="row" id="categoryRow" hidden>
       <label>Category <button class="clear" data-clear="categories">clear</button></label>
-      <p class="hint" id="categoryHint">Narrows within the class types above.</p>
+      <p class="hint" id="categoryHint"></p>
       <div class="chips scroll" id="categories"></div>
     </div>
 
@@ -124,11 +133,7 @@
 <script>
 let DATA = null, ARTISTS = [], NORM_ARTISTS = [];
 const HIDDEN_KEY = 'pcp-hidden';
-
-const GENRES = ['pop','hip hop','rap','rock','country','latin','edm','dance','house','techno',
-  'r&b','soul','funk','disco','metal','punk','indie','alternative','jazz','classical','reggae',
-  'k-pop','musicals','broadway','holiday','christmas','throwback','club','bangers','emo','folk',
-  '60s','70s','80s','90s','2000s','2010s','2020s'];
+const $ = id => document.getElementById(id);
 
 const norm = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()
   .replace(/\(.*?\)|\[.*?\]/g,' ')
@@ -139,8 +144,10 @@ const norm = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()
 const rx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const wordMatch = (hay, needle) =>
   hay === needle || new RegExp('(^|\\s)' + rx(needle) + '(\\s|$)').test(hay);
-
 const titleCase = s => s.replace(/_/g,' ').replace(/\b\w/g, m => m.toUpperCase());
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 const hidden = () => new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'));
 function hide(id) {
@@ -151,7 +158,7 @@ function hide(id) {
 const picked = id => [...document.querySelectorAll('#' + id + ' .chip.on')].map(c => c.dataset.value);
 
 function makeChips(containerId, values, labeller) {
-  const box = document.getElementById(containerId);
+  const box = $(containerId);
   const was = new Set(picked(containerId));
   box.innerHTML = '';
   values.forEach(v => {
@@ -159,25 +166,36 @@ function makeChips(containerId, values, labeller) {
     el.className = 'chip' + (was.has(String(v)) ? ' on' : '');
     el.textContent = labeller ? labeller(v) : v;
     el.dataset.value = v;
-    el.onclick = () => { el.classList.toggle('on'); if (containerId === 'disciplines') refreshCategories(); };
+    el.onclick = () => {
+      el.classList.toggle('on');
+      if (containerId === 'disciplines') refreshCategories();
+    };
     box.appendChild(el);
   });
 }
 
+// The category row only appears once you've narrowed to a class type — otherwise
+// it's 60-odd options with no organising principle.
 function refreshCategories() {
   const chosen = new Set(picked('disciplines'));
+  const row = $('categoryRow');
+  if (!chosen.size) {
+    row.hidden = true;
+    document.querySelectorAll('#categories .chip.on').forEach(c => c.classList.remove('on'));
+    $('categories').innerHTML = '';
+    return;
+  }
   const counts = new Map();
   DATA.classes.forEach(c => {
-    if (chosen.size && !chosen.has(c.b || c.f)) return;
+    if (!chosen.has(c.b || c.f)) return;
     c.c.forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
   });
-  // drop the long tail so the list stays usable
   const cats = [...counts.entries()].filter(([, n]) => n >= 3)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
   makeChips('categories', cats);
-  document.getElementById('categoryHint').textContent = chosen.size
-    ? `${cats.length} categories within ${[...chosen].map(titleCase).join(', ')}.`
-    : 'Narrows within the class types above. Pick a class type to shorten this list.';
+  $('categoryHint').textContent =
+    `${cats.length} categories within ${[...chosen].map(titleCase).join(', ')}.`;
+  row.hidden = false;
 }
 
 fetch('classes.json').then(r => r.json()).then(d => {
@@ -190,18 +208,15 @@ fetch('classes.json').then(r => r.json()).then(d => {
   makeChips('durations', [...new Set(d.classes.map(c => c.d))].filter(n => n > 0)
     .sort((a, b) => a - b), v => v + ' min');
 
-  const isel = document.getElementById('instructor');
+  const isel = $('instructor');
   [...new Set(d.classes.map(c => c.n).filter(Boolean))].sort()
     .forEach(v => isel.add(new Option(v, v)));
 
-  document.getElementById('stamp').textContent =
-    `${d.classes.length.toLocaleString()} classes in the library` +
+  $('stamp').textContent = `${d.classes.length.toLocaleString()} classes in the library` +
     (d.generated ? ` · updated ${d.generated}` : '');
-  document.getElementById('out').innerHTML =
-    '<div class="status">Tell it what you like, then hit Find classes.</div>';
+  $('out').innerHTML = '<div class="status">Tell it what you like, then hit Find classes.</div>';
 }).catch(() => {
-  document.getElementById('out').innerHTML =
-    '<div class="status">Couldn\'t load the class library. Try reloading.</div>';
+  $('out').innerHTML = '<div class="status">Couldn\'t load the class library. Try reloading.</div>';
 });
 
 document.querySelectorAll('.clear').forEach(btn => {
@@ -212,100 +227,126 @@ document.querySelectorAll('.clear').forEach(btn => {
   };
 });
 
-function parseLoves(text) {
-  const terms = [...new Set(text.split(/[\n,]+/).map(norm).filter(t => t.length > 1))];
-  const genres = [], names = [];
-  terms.forEach(t => (GENRES.includes(t) || GENRES.some(g => t.includes(g)) ? genres : names).push(t));
-  return {genres, names};
-}
+// ---------------------------------------------------------------- query
 
-function artistTerms(names) {
-  // artist id -> the thing you typed that it matched, so results can say why
-  const map = new Map();
-  names.forEach(term => {
-    NORM_ARTISTS.forEach((a, i) => {
-      if (map.has(i)) return;
-      if (a === term) map.set(i, term);
-      else if (term.length >= 5 && wordMatch(a, term)) map.set(i, term);
-      else if (a.length >= 5 && wordMatch(term, a)) map.set(i, term);
+// Commas and newlines separate alternatives — any one of them is a match.
+// Joining with "and" inside one chunk makes every part of it required.
+const RAW = new Map();          // normalised term -> what you actually typed
+const disp = t => RAW.get(t) || t;
+
+function parseQuery(text) {
+  const required = [], optional = [];
+  text.split(/[\n,]+/).forEach(chunk => {
+    const raw = chunk.split(/\s+and\s+/i).map(t => t.trim()).filter(Boolean);
+    const parts = [];
+    raw.forEach(t => {
+      const n = norm(t);
+      if (n.length > 1) { RAW.set(n, t); parts.push(n); }
     });
+    if (!parts.length) return;
+    if (parts.length > 1) required.push(...parts);
+    else optional.push(parts[0]);
   });
-  return map;
+  return {required: [...new Set(required)], optional: [...new Set(optional)]};
 }
 
-function genreHitsFor(hay, genres) {
-  const hits = [];
-  genres.forEach(t => {
-    if (hay.includes(t)) { hits.push(t); return; }
-    const parts = GENRES.filter(g => t.includes(g));
-    if (parts.length && parts.every(g => hay.includes(g))) hits.push(t);
+function artistIdsFor(term) {
+  const ids = new Set();
+  NORM_ARTISTS.forEach((a, i) => {
+    if (a === term) ids.add(i);
+    else if (term.length >= 5 && wordMatch(a, term)) ids.add(i);
+    else if (a.length >= 5 && wordMatch(term, a)) ids.add(i);
   });
+  return ids;
+}
+
+// A term can land three ways: an artist on the playlist, a song title on the
+// playlist, or the class's own name and category ("2010s Disney", "90s hip hop").
+const tagMatch = (hay, term) =>
+  hay.includes(term) || term.split(' ').every(w => w.length > 1 && hay.includes(w));
+
+function evaluate(c, terms) {
+  const hits = new Map();
+  for (const [title, aids] of c.s) {
+    const nt = norm(title);
+    const label = `${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ') || '?'}`;
+    for (const t of terms) {
+      const byArtist = aids.some(a => t.ids.has(a));
+      const bySong = !byArtist && t.term.length > 3 && nt.includes(t.term);
+      if (!byArtist && !bySong) continue;
+      if (!hits.has(t.term))
+        hits.set(t.term, {how: byArtist ? 'artist' : 'song', songs: [], artists: new Set()});
+      const h = hits.get(t.term);
+      h.songs.push(label);
+      if (byArtist) aids.filter(a => t.ids.has(a)).forEach(a => h.artists.add(ARTISTS[a]));
+    }
+  }
+  const hay = norm(c.t + ' ' + c.c.join(' '));
+  for (const t of terms) {
+    if (!hits.has(t.term) && tagMatch(hay, t.term))
+      hits.set(t.term, {how: 'tag', songs: [], artists: new Set()});
+  }
   return hits;
 }
 
-function search() {
-  const {genres, names} = parseLoves(document.getElementById('loves').value);
-  const aTerms = artistTerms(names);
-  const disc = new Set(picked('disciplines'));
-  const cats = new Set(picked('categories'));
-  const lens = new Set(picked('durations').map(Number));
-  const inst = document.getElementById('instructor').value;
-  const skip = hidden();
-  const asked = names.length || genres.length;
+function activeFilters() {
+  return {
+    disc: new Set(picked('disciplines')),
+    cats: new Set(picked('categories')),
+    lens: new Set(picked('durations').map(Number)),
+    inst: $('instructor').value,
+  };
+}
+const anyFilters = f => f.disc.size || f.cats.size || f.lens.size || f.inst;
 
+function runSearch({mode = 'all', useFilters = true, useMusic = true} = {}) {
+  const q = parseQuery($('loves').value);
+  let required = useMusic ? q.required : [];
+  let optional = useMusic ? q.optional : [];
+  if (mode === 'any') { optional = [...required, ...optional]; required = []; }
+
+  const terms = [...required, ...optional].map(t => ({term: t, ids: artistIdsFor(t)}));
+  const f = activeFilters();
+  const skip = hidden();
   const out = [];
+
   for (const c of DATA.classes) {
     if (skip.has(c.i)) continue;
-    if (disc.size && !disc.has(c.b || c.f)) continue;
-    if (cats.size && !c.c.some(t => cats.has(t))) continue;
-    if (lens.size && !lens.has(c.d)) continue;
-    if (inst && c.n !== inst) continue;
-
-    const songs = [];
-    const byArtist = new Map();   // artist name -> term you typed
-    const byTitle = [];
-    for (const [title, aids] of c.s) {
-      const hitIds = aids.filter(a => aTerms.has(a));
-      if (hitIds.length) {
-        hitIds.forEach(a => byArtist.set(ARTISTS[a], aTerms.get(a)));
-        songs.push({label: `${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ')}`,
-                    why: 'artist', term: aTerms.get(hitIds[0])});
-        continue;
-      }
-      const t = names.find(n => n.length > 3 && norm(title).includes(n));
-      if (t) {
-        songs.push({label: `${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ') || '?'}`,
-                    why: 'song', term: t});
-        byTitle.push(t);
-      }
+    if (useFilters) {
+      if (f.disc.size && !f.disc.has(c.b || c.f)) continue;
+      if (f.cats.size && !c.c.some(t => f.cats.has(t))) continue;
+      if (f.lens.size && !f.lens.has(c.d)) continue;
+      if (f.inst && c.n !== f.inst) continue;
     }
+    if (!terms.length) { out.push({c, hits: new Map(), required, score: (c.r || 0) * 2}); continue; }
 
-    const hay = norm(c.t + ' ' + c.c.join(' '));
-    const gHits = genreHitsFor(hay, genres);
-    if (asked && !songs.length && !gHits.length) continue;
+    const hits = evaluate(c, terms);
+    if (required.length && !required.every(t => hits.has(t))) continue;
+    if (!required.length && optional.length && !optional.some(t => hits.has(t))) continue;
 
-    out.push({
-      c, songs, gHits,
-      artists: [...byArtist.keys()],
-      titleTerms: [...new Set(byTitle)],
-      score: songs.length * 3 + gHits.length * 2 + (c.r || 0) * 2,
-    });
+    let score = (c.r || 0) * 2;
+    hits.forEach(h => { score += h.how === 'tag' ? 2 : 3 * Math.min(h.songs.length, 6); });
+    if (required.length) score += 4;   // an exact "all of these" beats a partial
+    out.push({c, hits, required, score});
   }
   out.sort((a, b) => b.score - a.score);
   return out;
 }
 
+// ------------------------------------------------------------- rendering
+
 function reasons(m) {
   const r = [];
-  if (m.artists.length) {
-    const n = m.songs.filter(s => s.why === 'artist').length;
-    r.push(`<b>${n}</b> song${n > 1 ? 's' : ''} by <span class="term">${esc(m.artists.slice(0,4).join(', '))}</span>${m.artists.length > 4 ? ' and others you named'
-        : m.artists.length > 1 ? ' — artists you named' : ' — an artist you named'}`);
-  }
-  m.titleTerms.forEach(t =>
-    r.push(`Plays a song you named — <span class="term">${esc(t)}</span>`));
-  m.gHits.forEach(g =>
-    r.push(`Class is tagged <span class="term">${esc(g)}</span>, which you asked for`));
+  if (m.required.length > 1)
+    r.push(`Has <b>all</b> of what you asked for: <span class="term">${esc(m.required.map(disp).join(' + '))}</span>`);
+  m.hits.forEach((h, term) => {
+    if (h.how === 'artist')
+      r.push(`<b>${plural(h.songs.length, 'song')}</b> by <span class="term">${esc([...h.artists].join(', '))}</span> — matched “${esc(disp(term))}”`);
+    else if (h.how === 'song')
+      r.push(`Plays the song <span class="term">${esc(disp(term))}</span>`);
+    else
+      r.push(`The class itself is <span class="term">${esc(disp(term))}</span>`);
+  });
   if (!r.length) r.push('No music filters applied — ranked by how highly members rated it');
   return r;
 }
@@ -316,16 +357,16 @@ function card(m) {
   if (c.r) badges.push(Math.round(c.r * 100) + '% liked');
   if (c.x) badges.push('difficulty ' + c.x);
   if (c.c.length) badges.push(c.c.slice(0, 2).join(' · '));
+  const songs = [];
+  m.hits.forEach((h, term) => h.songs.forEach(s => songs.push({s, term})));
   return `<div class="card result" data-id="${esc(c.i)}">
     <h2>${esc(c.t)}</h2>
     <div class="meta">${esc(c.n || 'Peloton')} · ${c.d} min · ${esc(titleCase(c.b || c.f))}${c.a ? ' · ' + esc(c.a) : ''}</div>
     <div class="badges">${badges.map(b => `<span class="badge">${esc(b)}</span>`).join('')}</div>
-    <div class="why">
-      <h3>Why this matched</h3>
-      <ul>${reasons(m).map(x => '<li>' + x + '</li>').join('')}</ul>
-    </div>
-    ${m.songs.length ? '<ul class="songs">' + m.songs.slice(0, 8).map(s =>
-        `<li>♫ ${esc(s.label)} <span class="tag">· matched “${esc(s.term)}”</span></li>`).join('') + '</ul>' : ''}
+    <div class="why"><h3>Why this matched</h3>
+      <ul>${reasons(m).map(x => '<li>' + x + '</li>').join('')}</ul></div>
+    ${songs.length ? '<ul class="songs">' + songs.slice(0, 8).map(x =>
+        `<li>♫ ${esc(x.s)} <span class="tag">· matched “${esc(disp(x.term))}”</span></li>`).join('') + '</ul>' : ''}
     <div class="actions">
       <a class="open" target="_blank" rel="noopener"
          href="https://members.onepeloton.com/classes/${encodeURIComponent(c.f)}?modal=classDetailsModal&classId=${encodeURIComponent(c.i)}">Open in Peloton</a>
@@ -340,26 +381,66 @@ function dismiss(id) {
   if (el) el.remove();
 }
 
-function show(matches, limit) {
-  const out = document.getElementById('out');
-  if (!matches.length) {
-    out.innerHTML = '<div class="status">Nothing matched. Try fewer filters, or different artists.</div>';
-    return;
+function clearFilters() {
+  document.querySelectorAll('#disciplines .chip.on, #categories .chip.on, #durations .chip.on')
+    .forEach(c => c.classList.remove('on'));
+  $('instructor').value = '';
+  refreshCategories();
+}
+
+// When nothing matches, say which constraint did the damage and offer the fix.
+function showEmpty() {
+  const q = parseQuery($('loves').value);
+  const f = activeFilters();
+  const opts = [];
+
+  if (q.required.length > 1) {
+    const any = runSearch({mode: 'any'});
+    if (any.length) opts.push([
+      `${any.length.toLocaleString()} classes have <b>at least one</b> of those — just never all of them together.`,
+      'Show those', () => show(any, 15)]);
   }
+  if (anyFilters(f)) {
+    const loose = runSearch({useFilters: false});
+    if (loose.length) {
+      const names = [...f.disc].map(titleCase).concat([...f.cats],
+        [...f.lens].map(n => n + ' min'), f.inst ? [f.inst] : []);
+      opts.push([
+        `${loose.length.toLocaleString()} classes match your music — your filters (${esc(names.join(', '))}) rule them all out.`,
+        'Clear filters', () => { clearFilters(); show(runSearch(), 15); }]);
+    }
+  }
+  if (anyFilters(f) && q.required.length + q.optional.length) {
+    const nomusic = runSearch({useMusic: false});
+    if (nomusic.length) opts.push([
+      `${nomusic.length.toLocaleString()} classes fit your filters if you ignore the music.`,
+      'Ignore the music', () => show(nomusic, 15)]);
+  }
+
+  $('out').innerHTML = `<div class="card empty">
+      <h3>Nothing matched all of that</h3>
+      <p>${opts.length ? "Here's what's in the way, and how to loosen it:"
+                       : 'Nothing in the library fits. Try a different artist, or fewer filters.'}</p>
+      ${opts.map((o, i) => `<div class="opt"><span>${o[0]}</span>
+        <button data-opt="${i}">${esc(o[1])}</button></div>`).join('')}
+    </div>`;
+  document.querySelectorAll('[data-opt]').forEach(b => b.onclick = () => opts[+b.dataset.opt][2]());
+}
+
+function show(matches, limit) {
+  if (!matches.length) { showEmpty(); return; }
   const shown = matches.slice(0, limit);
-  out.innerHTML = `<p class="count">${matches.length.toLocaleString()} matching classes — showing ${shown.length}</p>`
+  $('out').innerHTML =
+    `<p class="count">${matches.length.toLocaleString()} matching classes — showing ${shown.length}</p>`
     + shown.map(card).join('');
 }
 
-document.getElementById('go').onclick = () => show(search(), 15);
-document.getElementById('surprise').onclick = () => {
-  const pool = search().slice(0, 40);
+$('go').onclick = () => show(runSearch(), 15);
+$('surprise').onclick = () => {
+  const pool = runSearch().slice(0, 40);
   show(pool.length ? [pool[Math.floor(Math.random() * pool.length)]] : [], 1);
 };
 
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 </script>
 </body>
 </html>
