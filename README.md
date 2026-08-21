@@ -46,13 +46,28 @@ Python 3 standard library only. Nothing to install.
 
 ## Using it
 
-The easiest way is the browser interface:
+**Double-click `Peloton Class Picker.command`.** A Terminal window opens and the
+interface appears in your browser. Leave that window open while you use it; close it when
+you're done. (There's a copy on the Desktop too.)
+
+### A note on GitHub
+
+This repo stores the code — it does not run it. If you turn on GitHub Pages, the page at
+`vivian-killin.github.io/peloton-class-picker` is just this README rendered as a webpage,
+not the app.
+
+The picker can't run on GitHub Pages: Pages only serves static files and this is a Python
+program, and more importantly the interface works by calling Peloton's API with *your*
+login. That has to stay on your own machine. The UI exists only while the program is
+running locally.
+
+### Or start it from the command line
 
 ```bash
 python3 peloton_picker.py serve
 ```
 
-That opens a page at `http://127.0.0.1:8765` where you choose a class type, lengths,
+Either way, that opens a page at `http://127.0.0.1:8765` where you choose a class type, lengths,
 optionally an instructor, and how many songs you want to like — then it hands back one
 class you haven't taken, with the matching songs and a link to open it. "Not this one"
 picks again. The page is served from your own machine only; nothing is exposed to the
