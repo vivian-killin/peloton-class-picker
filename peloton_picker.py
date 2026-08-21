@@ -1056,6 +1056,78 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    """Build the static dataset the public web app runs on.
+
+    This is Peloton's public class catalogue — titles, instructors, lengths, playlists.
+    Nothing personal goes in: no workout history, no preferences, no account details.
+    """
+    prefs = Prefs.load()
+    client = Client(verbose=args.verbose)
+    conn = db()
+
+    categories = args.categories or sorted(
+        {cfg["browse_category"] for cfg in prefs.tracks.values()})
+
+    seen: dict[str, Klass] = {}
+    for cat in categories:
+        print(f"Fetching {cat}...", file=sys.stderr)
+        for k in fetch_catalog(client, cat, args.pages, "top_rated"):
+            if k.ride_id and k.ride_id not in seen:
+                seen[k.ride_id] = k
+    print(f"{len(seen)} unique classes.", file=sys.stderr)
+
+    playlists = fetch_playlists(client, conn, list(seen))
+
+    artist_index: dict[str, int] = {}
+
+    def artist_id(name: str) -> int:
+        if name not in artist_index:
+            artist_index[name] = len(artist_index)
+        return artist_index[name]
+
+    classes = []
+    for rid, k in seen.items():
+        songs = []
+        for song in playlists.get(rid, []):
+            # Peloton repeats artists under different casings ("JAY-Z" / "Jay-Z")
+            by_norm: dict[str, str] = {}
+            for a in song.get("artists", []):
+                by_norm.setdefault(norm(a) or a, a)
+            names = list(by_norm.values())
+            if not (song.get("title") or names):
+                continue
+            songs.append([song.get("title", ""), [artist_id(n) for n in names]])
+        classes.append({
+            "i": rid,
+            "t": k.title,
+            "n": k.instructor,
+            "d": k.duration_min,
+            "f": k.discipline,
+            "c": k.class_types,
+            "r": round(k.rating, 3),
+            "x": round(k.difficulty, 1),
+            "a": (datetime.fromtimestamp(k.air_time, timezone.utc).strftime("%Y-%m")
+                  if k.air_time else ""),
+            "s": songs,
+        })
+
+    classes.sort(key=lambda c: (-c["r"], c["t"]))
+    payload = {
+        "generated": args.generated or "",
+        "artists": [name for name, _ in sorted(artist_index.items(), key=lambda kv: kv[1])],
+        "classes": classes,
+    }
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
+    kb = out.stat().st_size / 1024
+    with_songs = sum(1 for c in classes if c["s"])
+    print(f"Wrote {out} — {len(classes)} classes ({with_songs} with playlists), "
+          f"{len(artist_index)} artists, {kb:,.0f} KB")
+    return 0
+
+
 def main() -> int:
     load_dotenv()
     p = argparse.ArgumentParser(description=__doc__,
@@ -1094,6 +1166,13 @@ def main() -> int:
     sp.add_argument("--no-browser", action="store_true")
     sp.add_argument("--pages", type=int, default=3)
     sp.set_defaults(func=cmd_serve)
+
+    sp = sub.add_parser("export", help="build the static dataset for the public web app")
+    sp.add_argument("--out", default="docs/classes.json")
+    sp.add_argument("--pages", type=int, default=2, help="pages per category (100 each)")
+    sp.add_argument("--categories", nargs="*")
+    sp.add_argument("--generated", default="", help="date stamp to embed")
+    sp.set_defaults(func=cmd_export)
 
     sp = sub.add_parser("categories", help="list valid browse categories")
     sp.set_defaults(func=cmd_categories)

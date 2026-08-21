@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peloton Class Picker</title>
+<meta name="description" content="Find Peloton classes whose playlists match the music you actually like. No login required.">
+<style>
+  :root {
+    --bg:#f7f7f5; --panel:#fff; --ink:#191919; --muted:#6c6c6c; --line:#e3e3de;
+    --accent:#c9314a; --accent-ink:#fff; --chip:#f0efeb; --hit:#0a7d55; --hit-bg:#e7f4ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#131315; --panel:#1c1c1f; --ink:#f2f2f0; --muted:#9b9b98; --line:#2d2d32;
+      --accent:#e8556a; --accent-ink:#17171a; --chip:#26262b; --hit:#4fd39b; --hit-bg:#172c24;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:36px 18px 80px;background:var(--bg);color:var(--ink);
+       font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:720px;margin:0 auto}
+  header{margin-bottom:28px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-0.025em}
+  .sub{color:var(--muted);margin:0;font-size:15px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+        padding:22px;margin-bottom:16px}
+  label{display:block;font-weight:650;font-size:12px;margin-bottom:8px;
+        text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)}
+  .hint{font-size:13px;color:var(--muted);margin:-4px 0 9px}
+  textarea,select,input{width:100%;padding:11px 13px;border-radius:10px;
+        border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+  textarea{min-height:96px;resize:vertical}
+  .row{margin-bottom:20px}
+  .row:last-of-type{margin-bottom:0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:560px){.grid{grid-template-columns:1fr}}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);
+        background:var(--chip);cursor:pointer;user-select:none;font-size:14px}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:650}
+  .buttons{display:flex;gap:10px;margin-top:22px}
+  button{font:inherit;cursor:pointer;border-radius:11px;padding:14px;border:1px solid var(--line)}
+  .go{flex:2;background:var(--accent);color:var(--accent-ink);border:0;font-weight:700;font-size:16px}
+  .alt{flex:1;background:transparent;color:var(--ink)}
+  .result{padding:20px}
+  .result h2{margin:0 0 5px;font-size:19px;letter-spacing:-0.01em}
+  .meta{color:var(--muted);font-size:14px}
+  .badges{margin-top:10px}
+  .badge{display:inline-block;background:var(--chip);border-radius:6px;padding:3px 9px;
+         font-size:12px;font-weight:650;margin:0 6px 6px 0}
+  .badge.hit{background:var(--hit-bg);color:var(--hit)}
+  .songs{list-style:none;padding:0;margin:12px 0 0}
+  .songs li{padding:5px 0;border-top:1px solid var(--line);font-size:14px}
+  .actions{display:flex;gap:10px;margin-top:16px;align-items:center}
+  a.open{flex:1;text-align:center;padding:11px;background:var(--accent);color:var(--accent-ink);
+         border-radius:9px;text-decoration:none;font-weight:700;font-size:15px}
+  .hide{padding:11px 14px;background:transparent;color:var(--muted);font-size:14px}
+  .status{color:var(--muted);text-align:center;padding:26px 0}
+  .count{color:var(--muted);font-size:14px;margin:24px 0 12px}
+  footer{margin-top:44px;color:var(--muted);font-size:13px;line-height:1.6;text-align:center}
+  footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Peloton Class Picker</h1>
+    <p class="sub">Find classes whose playlist actually has music you like. No login, nothing stored on a server.</p>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <label for="loves">Music you love</label>
+      <p class="hint">Artists, songs, or a vibe — one per line or separated by commas.
+        Try “Beyoncé, 90s hip hop, Dua Lipa, Mr. Brightside”.</p>
+      <textarea id="loves" placeholder="Taylor Swift&#10;Fleetwood Mac&#10;throwback pop&#10;Levitating"></textarea>
+    </div>
+
+    <div class="grid">
+      <div class="row">
+        <label for="discipline">Class type</label>
+        <select id="discipline"><option value="">Any</option></select>
+      </div>
+      <div class="row">
+        <label for="instructor">Instructor</label>
+        <select id="instructor"><option value="">Anyone</option></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Length</label>
+      <div class="chips" id="durations"></div>
+    </div>
+
+    <div class="buttons">
+      <button class="go" id="go">Find classes</button>
+      <button class="alt" id="surprise">Surprise me</button>
+    </div>
+  </div>
+
+  <div id="out"><div class="status" id="loading">Loading the class library…</div></div>
+
+  <footer>
+    <p id="stamp"></p>
+    <p>An unofficial hobby project, not affiliated with or endorsed by Peloton.
+      Class and playlist details belong to Peloton. Everything here runs in your browser —
+      no account, no tracking, no data leaves this page.<br>
+      <a href="https://github.com/vivian-killin/peloton-class-picker">Source on GitHub</a></p>
+  </footer>
+</div>
+
+<script>
+let DATA = null, ARTISTS = [], NORM_ARTISTS = [], LAST = [];
+const HIDDEN_KEY = 'pcp-hidden';
+
+const GENRES = ['pop','hip hop','rap','rock','country','latin','edm','dance','house','techno',
+  'r&b','soul','funk','disco','metal','punk','indie','alternative','jazz','classical','reggae',
+  'k-pop','musicals','broadway','holiday','christmas','throwback','club','bangers','emo','folk',
+  '60s','70s','80s','90s','2000s','2010s','2020s'];
+
+const norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+  .replace(/\(.*?\)|\[.*?\]/g,' ')
+  .replace(/[^a-z0-9& ]+/g,' ')
+  .replace(/^\s*the\s+/,'')
+  .replace(/\s+/g,' ').trim();
+
+const hidden = () => new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'));
+function hide(id) {
+  const h = hidden(); h.add(id);
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...h]));
+}
+
+fetch('classes.json').then(r => r.json()).then(d => {
+  DATA = d;
+  ARTISTS = d.artists;
+  NORM_ARTISTS = d.artists.map(norm);
+
+  const disciplines = [...new Set(d.classes.map(c => c.f))].sort();
+  const dsel = document.getElementById('discipline');
+  disciplines.forEach(v => dsel.add(new Option(v.replace(/_/g,' ').replace(/\b\w/g, m => m.toUpperCase()), v)));
+
+  const instructors = [...new Set(d.classes.map(c => c.n).filter(Boolean))].sort();
+  const isel = document.getElementById('instructor');
+  instructors.forEach(v => isel.add(new Option(v, v)));
+
+  const lengths = [...new Set(d.classes.map(c => c.d))].filter(n => n > 0).sort((a,b) => a-b);
+  const box = document.getElementById('durations');
+  lengths.forEach(v => {
+    const el = document.createElement('div');
+    el.className = 'chip'; el.textContent = v + ' min'; el.dataset.value = v;
+    el.onclick = () => el.classList.toggle('on');
+    box.appendChild(el);
+  });
+
+  document.getElementById('stamp').textContent =
+    `${d.classes.length.toLocaleString()} classes in the library` +
+    (d.generated ? ` · snapshot taken ${d.generated}` : '');
+  document.getElementById('out').innerHTML =
+    '<div class="status">Tell it what you like, then hit Find classes.</div>';
+}).catch(() => {
+  document.getElementById('out').innerHTML =
+    '<div class="status">Couldn\'t load the class library. Try reloading.</div>';
+});
+
+function parseLoves(text) {
+  const terms = text.split(/[\n,]+/).map(t => norm(t)).filter(t => t.length > 1);
+  const genres = [], names = [];
+  terms.forEach(t => (GENRES.includes(t) || GENRES.some(g => t.includes(g)) ? genres : names).push(t));
+  return {genres, names};
+}
+
+const rx = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const wordMatch = (hay, needle) =>
+  hay === needle || new RegExp('(^|\\s)' + rx(needle) + '(\\s|$)').test(hay);
+
+function artistMatches(names) {
+  // Map each loved term to the artist ids it plausibly refers to. Matching is on whole
+  // words so "sia" doesn't swallow "Anastasia" and "love" doesn't match half the library.
+  const ids = new Set();
+  names.forEach(term => {
+    NORM_ARTISTS.forEach((a, i) => {
+      if (a === term) ids.add(i);
+      else if (term.length >= 5 && wordMatch(a, term)) ids.add(i);
+      else if (a.length >= 5 && wordMatch(term, a)) ids.add(i);
+    });
+  });
+  return ids;
+}
+
+function genreHitsFor(hay, genres) {
+  // "90s hip hop" should still land when a title says "90s Hip Hop"; if the whole
+  // phrase misses, fall back to every genre word inside it having to appear.
+  const hits = [];
+  genres.forEach(t => {
+    if (hay.includes(t)) { hits.push(t); return; }
+    const parts = GENRES.filter(g => t.includes(g));
+    if (parts.length && parts.every(g => hay.includes(g))) hits.push(t);
+  });
+  return hits;
+}
+
+function score(loves) {
+  const {genres, names} = parseLoves(loves);
+  const wantedArtists = artistMatches(names);
+  const disc = document.getElementById('discipline').value;
+  const inst = document.getElementById('instructor').value;
+  const lens = [...document.querySelectorAll('.chip.on')].map(c => +c.dataset.value);
+  const skip = hidden();
+
+  const out = [];
+  for (const c of DATA.classes) {
+    if (skip.has(c.i)) continue;
+    if (disc && c.f !== disc) continue;
+    if (inst && c.n !== inst) continue;
+    if (lens.length && !lens.includes(c.d)) continue;
+
+    const hits = [];
+    for (const [title, aids] of c.s) {
+      const byArtist = aids.some(a => wantedArtists.has(a));
+      const byTitle = names.some(t => t.length > 3 && norm(title).includes(t));
+      if (byArtist || byTitle) {
+        hits.push(`${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ') || '?'}`);
+      }
+    }
+
+    const hay = norm(c.t + ' ' + c.c.join(' '));
+    const genreHits = genreHitsFor(hay, genres);
+
+    let s = hits.length * 3 + genreHits.length * 2 + (c.r || 0) * 2;
+    if (!hits.length && !genreHits.length && (names.length || genres.length)) continue;
+    out.push({c, hits, genreHits, s});
+  }
+  out.sort((a, b) => b.s - a.s);
+  return out;
+}
+
+function card(m) {
+  const c = m.c;
+  const badges = [];
+  if (m.hits.length) badges.push([`${m.hits.length} song${m.hits.length>1?'s':''} you like`, true]);
+  m.genreHits.forEach(g => badges.push([g, true]));
+  if (c.r) badges.push([Math.round(c.r*100) + '% liked', false]);
+  if (c.x) badges.push(['difficulty ' + c.x, false]);
+  return `<div class="card result" data-id="${c.i}">
+    <h2>${esc(c.t)}</h2>
+    <div class="meta">${esc(c.n || 'Peloton')} · ${c.d} min · ${esc(c.f.replace(/_/g,' '))}${c.a ? ' · ' + esc(c.a) : ''}</div>
+    <div class="badges">${badges.map(([b,hit]) => `<span class="badge${hit?' hit':''}">${esc(b)}</span>`).join('')}</div>
+    ${m.hits.length ? '<ul class="songs">' + m.hits.slice(0,6).map(s => '<li>♫ ' + esc(s) + '</li>').join('') + '</ul>' : ''}
+    <div class="actions">
+      <a class="open" target="_blank" rel="noopener"
+         href="https://members.onepeloton.com/classes/${encodeURIComponent(c.f)}?modal=classDetailsModal&classId=${encodeURIComponent(c.i)}">Open in Peloton</a>
+      <button class="hide" onclick="dismiss('${c.i}')">Done / hide</button>
+    </div>
+  </div>`;
+}
+
+function dismiss(id) {
+  hide(id);
+  const el = document.querySelector(`.result[data-id="${id}"]`);
+  if (el) el.remove();
+}
+
+function show(matches, limit) {
+  const out = document.getElementById('out');
+  if (!matches.length) {
+    out.innerHTML = '<div class="status">Nothing matched. Try fewer filters, or different artists.</div>';
+    return;
+  }
+  const shown = matches.slice(0, limit);
+  out.innerHTML = `<p class="count">${matches.length.toLocaleString()} matching classes — showing ${shown.length}</p>`
+    + shown.map(card).join('');
+}
+
+document.getElementById('go').onclick = () => {
+  LAST = score(document.getElementById('loves').value);
+  show(LAST, 15);
+};
+
+document.getElementById('surprise').onclick = () => {
+  const pool = score(document.getElementById('loves').value).slice(0, 40);
+  if (!pool.length) { show([], 0); return; }
+  show([pool[Math.floor(Math.random() * pool.length)]], 1);
+};
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

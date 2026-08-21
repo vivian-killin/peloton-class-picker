@@ -161,7 +161,7 @@
       ]
     },
     "pilates": {
-      "browse_category": "strength",
+      "browse_category": "pilates",
       "durations": [
         10,
         15,
@@ -169,10 +169,7 @@
         30
       ],
       "min_liked_songs": 0,
-      "music_weight": 0.75,
-      "include_type_keywords": [
-        "pilates"
-      ]
+      "music_weight": 0.75
     },
     "barre": {
       "browse_category": "strength",
@@ -189,16 +186,13 @@
       ]
     },
     "hikes": {
-      "browse_category": "walking",
+      "browse_category": "hiking",
       "durations": [
         20,
         30
       ],
       "min_liked_songs": 0,
-      "music_weight": 1.0,
-      "include_type_keywords": [
-        "hike"
-      ]
+      "music_weight": 1.0
     },
     "walking": {
       "browse_category": "walking",

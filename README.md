@@ -1,7 +1,30 @@
 # peloton-picker
 
-Picks Peloton classes worth your time: filters out anything you've already taken,
-and — for rides especially — favours classes whose playlist actually has songs you like.
+Finds Peloton classes whose playlist actually has music you like.
+
+There are two versions in here.
+
+## 1. The website — anyone can use it, no login
+
+**→ https://vivian-killin.github.io/peloton-class-picker/**
+
+Type in a few artists, songs, or genres you love. It searches a snapshot of the Peloton
+class library — 1,800 classes and their playlists — and ranks the ones whose music
+matches, with the matching songs listed. Filter by class type, length, and instructor.
+"Surprise me" picks one at random from the top matches.
+
+It's a single static page. Everything runs in your browser: no account, no server, no
+data leaves the page. Classes you mark "Done / hide" are remembered in your browser only.
+
+The class library is a snapshot baked into the repo (`classes.json`), not a live feed —
+Peloton's catalogue needs a member login, so a public site can't query it directly.
+Refresh it any time with `python3 peloton_picker.py export` (see below).
+
+## 2. The command-line tool — your account, your history
+
+This is the personal version. It signs into *your* Peloton account, so it knows every
+class you've already taken and never recommends one twice. It also learns your taste from
+the playlists of classes you've done.
 
 Python 3 standard library only. Nothing to install.
 
@@ -90,6 +113,16 @@ Each result gives you the title, instructor, length, why it scored well, which o
 songs are in it, and a direct link to open the class.
 
 Run `sync-history` again every couple of weeks so the no-repeats filter stays current.
+
+### Refreshing the website's class library
+
+```bash
+python3 peloton_picker.py export --pages 2 --generated "$(date +%Y-%m-%d)"
+```
+
+Rewrites `classes.json` from the current catalogue, then commit and push. Playlists are
+cached locally, so re-running it is quick. The export contains only Peloton's public class
+metadata — no history, no preferences, nothing about your account.
 
 ## Publishing it to GitHub
 
