@@ -16,6 +16,9 @@ result explains *why* it matched: how many of the things you named it hits, whic
 and which genre tags landed. Expanding **Full playlist** shows every track in the class,
 with the ones you asked for highlighted.
 
+Commas mean "any of these"; joining with **and** requires all of them, up to four. A fifth
+joined term isn't discarded — it stops being required and still counts toward ranking.
+
 Filters: **class type** (multi-select — pick Cycling and Pilates together), **category**
 (a sub-filter that narrows within the types you picked — Power Zone, Intervals, Barre,
 Full Body, and so on), **length**, and **instructor**. "Surprise me" picks one at random

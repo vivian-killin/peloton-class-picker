@@ -172,6 +172,9 @@ select option { color:var(--on-accent) }
 
 /* ---------- results ---------- */
 .status { color:var(--ink-2); text-align:center; padding:30px 4px; font-size:17px; font-weight:600 }
+.notice { color:var(--ink-3); font-size:14px; margin:26px 0 -10px; padding:11px 14px;
+          background:rgba(255,225,77,.1); border:1px dashed rgba(255,225,77,.5);
+          border-radius:var(--r-md) }
 .count { color:var(--yellow); font-family:var(--display); font-size:17px; letter-spacing:.06em;
          text-transform:uppercase; margin:26px 0 14px }
 .card {
@@ -265,9 +268,9 @@ footer { margin-top:52px; color:var(--ink-4); font-size:13px; line-height:1.7; t
   <div class="panel">
     <div class="field">
       <label class="l-music" for="loves">Music you love</label>
-      <p class="hint">Artists, songs, or a vibe. Separate with commas to find classes with
-        <b>any</b> of them — or join two with <b>and</b> to require <b>both</b>.<br>
-        Try “Shake It Off, Jonas Brothers, Hilary Duff, 2010s Disney”, or “Shake It Off and Jonas Brothers”.</p>
+      <p class="hint">Enter artists, songs, or a theme. Separate with commas to find classes
+        with <b>any</b> of them, or use <b>and</b> to require all of them up to 4.
+        The results will rank by coverage!</p>
       <textarea id="loves" placeholder="Shake It Off, Jonas Brothers, Hilary Duff, 2010s Disney"></textarea>
     </div>
 
@@ -451,8 +454,10 @@ function renderControls() {
 }
 
 /* ---------------------------------------------------------- the search */
+const MAX_REQUIRED = 4;
+
 function parseQuery(text) {
-  const required = [], optional = [];
+  const joined = [], loose = [];
   text.split(/[\n,]+/).forEach(chunk => {
     const parts = [];
     chunk.split(/\s+and\s+/i).map(t => t.trim()).filter(Boolean).forEach(t => {
@@ -460,9 +465,15 @@ function parseQuery(text) {
       if (n.length > 1) { RAW.set(n, t); parts.push(n); }
     });
     if (!parts.length) return;
-    if (parts.length > 1) required.push(...parts); else optional.push(parts[0]);
+    if (parts.length > 1) joined.push(...parts); else loose.push(parts[0]);
   });
-  return {required: [...new Set(required)], optional: [...new Set(optional)]};
+  // "and" requires all of them, up to four. Anything past the fourth still counts
+  // toward ranking as an optional term rather than being thrown away.
+  const all = [...new Set(joined)];
+  const required = all.slice(0, MAX_REQUIRED);
+  const overflow = all.slice(MAX_REQUIRED);
+  const optional = [...new Set([...overflow, ...loose])].filter(t => !required.includes(t));
+  return {required, optional, capped: overflow.length};
 }
 
 const ARTIST_CACHE = new Map();
@@ -572,10 +583,13 @@ function runSearch({mode = 'all', useFilters = true, useMusic = true} = {}) {
 /* -------------------------------------------------------- result cards */
 function reasons(m) {
   const r = [];
-  if (m.required.length > 1)
+  if (m.required.length > 1) {
     r.push(`Has all of what you asked for: <span class="term">${esc(m.required.map(disp).join(' + '))}</span>`);
-  else if (m.asked > 1)
+    if (m.asked > m.required.length)
+      r.push(`Matches <span class="term">${m.hits.size} of the ${m.asked}</span> things you named`);
+  } else if (m.asked > 1) {
     r.push(`Matches <span class="term">${m.hits.size} of the ${m.asked}</span> things you named`);
+  }
   m.hits.forEach((h, term) => {
     if (h.how === 'artist')
       r.push(`${plural(h.songs.length, 'song')} by <span class="term">${esc([...h.artists].join(', '))}</span> — matched “${esc(disp(term))}”`);
@@ -680,8 +694,11 @@ function show(matches, limit) {
   state.menu = null; renderControls();
   if (!matches.length) { showEmpty(); return; }
   const shown = matches.slice(0, limit);
+  const capped = parseQuery($('loves').value).capped;
   $('out').innerHTML =
-    `<p class="count">${matches.length.toLocaleString()} matching classes — showing ${shown.length}</p>`
+    (capped ? `<p class="notice">“and” requires up to ${MAX_REQUIRED} at a time, so the
+       ${plural(capped, 'extra')} still counts toward ranking rather than being required.</p>` : '')
+    + `<p class="count">${matches.length.toLocaleString()} matching classes — showing ${shown.length}</p>`
     + shown.map(card).join('');
 }
 
