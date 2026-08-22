@@ -182,7 +182,7 @@ select option { color:var(--on-accent) }
 .btn-secondary:hover { color:var(--ink); border-color:var(--pink-s) }
 
 /* ---------- results ---------- */
-.wait { margin:14px 0 0; text-align:center; font-size:14px; color:var(--ink-3) }
+.wait { margin:10px 0 0; text-align:left; font-size:14px; color:var(--ink-3) }
 .status { color:var(--ink-2); text-align:center; padding:30px 4px; font-size:17px; font-weight:600 }
 .notice { color:var(--ink-3); font-size:14px; margin:26px 0 -10px; padding:11px 14px;
           background:rgba(255,225,77,.1); border:1px dashed rgba(255,225,77,.5);
@@ -283,6 +283,8 @@ footer { margin-top:36px; color:var(--ink-4); font-size:13px; line-height:1.7; t
         with any of them, or use <b>and</b> to require all of them up to 4.
         The results will rank by coverage!</p>
       <textarea id="loves" placeholder="Shake It Off, Jonas Brothers, Hilary Duff, 2010s Disney"></textarea>
+      <p class="wait">Filters and results might take up to ~15s to load, especially after a
+        weekend refresh of the library!</p>
     </div>
 
     <div class="pair">
@@ -316,7 +318,6 @@ footer { margin-top:36px; color:var(--ink-4); font-size:13px; line-height:1.7; t
       <button class="btn-primary" id="go">Find my classes</button>
       <button class="btn-secondary" id="surprise">Surprise me</button>
     </div>
-    <p class="wait">Results and library might take up to ~15s to load!</p>
   </div>
 
   <div id="out"><div class="status">Loading the class library…</div></div>
@@ -435,7 +436,19 @@ function dropdown(key, entries, labeller, {disabled = false, summaryText}) {
       </div></div>` : ''}`;
 }
 
+const LOADING_TRIGGER =
+  '<button class="trigger" disabled><span class="summary">Loading…</span>' +
+  '<span class="caret">▾</span></button>';
+
 function renderControls() {
+  // show() calls this, so a search fired before the library lands would otherwise
+  // swap the "Loading…" placeholders for dropdowns with nothing inside them
+  if (!DATA) {
+    ['disciplines', 'categories', 'durations'].forEach(k => {
+      $('slot-' + k).innerHTML = LOADING_TRIGGER;
+    });
+    return;
+  }
   const cats = catList();
   const hasType = state.disciplines.length > 0;
 
@@ -759,8 +772,9 @@ function needsMusic() {
   return q.required.length + q.optional.length > 0;
 }
 function whenReady(run) {
-  if (!needsMusic() || MUSIC_READY) { run(); return; }
-  $('out').innerHTML = '<div class="status">Loading playlists…</div>';
+  if (DATA && (!needsMusic() || MUSIC_READY)) { run(); return; }
+  $('out').innerHTML = `<div class="status">${DATA ? 'Loading playlists…'
+    : 'Still loading the library — your search will run as soon as it lands.'}</div>`;
   MUSIC_PENDING = run;
 }
 
@@ -832,6 +846,9 @@ download('classes.json', 'Loading classes…').then(d => {
     (d.generated ? ` · updated ${d.generated}` : '');
   renderControls();          // the filters work now, before the playlists arrive
   $('out').innerHTML = '';
+  if (MUSIC_PENDING && !needsMusic()) {
+    const run = MUSIC_PENDING; MUSIC_PENDING = null; run();
+  }
   return download('playlists.json', 'Loading playlists…').then(attachPlaylists);
 }).catch(() => {
   $('out').innerHTML = '<div class="status">Couldn\'t load the class library. Try reloading.</div>';
