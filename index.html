@@ -335,6 +335,7 @@ const NEON = ['#ff77c4','#7ceeff','#c6ff6b','#ffe14d','#c295ff','#ffa6d8'];
 const $ = id => document.getElementById(id);
 
 let DATA = null, ARTISTS = [], NORM_ARTISTS = [], SONGS = [], NORM_TITLES = [], SONG_ARTISTS = [];
+let MUSIC_READY = false, MUSIC_PENDING = null;
 const state = {
   disciplines: [], categories: [], durations: [], menu: null,
   results: null, total: 0, empty: null,
@@ -749,18 +750,31 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && state.menu) { state.menu = null; renderControls(); }
 });
 
-$('go').onclick = () => show(runSearch(), 15);
-$('surprise').onclick = () => {
+// Filters work the moment the class list lands. A search that involves music has to
+// wait for the playlists — so queue it and run it the instant they arrive, rather than
+// making people watch a spinner and press the button again.
+function needsMusic() {
+  const q = parseQuery($('loves').value);
+  return q.required.length + q.optional.length > 0;
+}
+function whenReady(run) {
+  if (!needsMusic() || MUSIC_READY) { run(); return; }
+  $('out').innerHTML = '<div class="status">Loading playlists…</div>';
+  MUSIC_PENDING = run;
+}
+
+$('go').onclick = () => whenReady(() => show(runSearch(), 15));
+$('surprise').onclick = () => whenReady(() => {
   const pool = runSearch().slice(0, 40);
   show(pool.length ? [pool[Math.floor(Math.random() * pool.length)]] : [], 1);
-};
+});
 
-// The library is a few megabytes, so report real progress instead of a dead spinner.
-async function loadLibrary() {
-  const res = await fetch('classes.json');
+// Report real progress instead of a dead spinner.
+async function download(file, label) {
+  const res = await fetch(file);
   if (!res.ok) throw new Error(res.status);
   const total = +res.headers.get('content-length') || 0;
-  const status = $('out').querySelector('.status');
+  const status = () => $('out').querySelector('.status');
   if (!res.body || !total) return res.json();
   const reader = res.body.getReader();
   const chunks = [];
@@ -771,21 +785,32 @@ async function loadLibrary() {
     chunks.push(value); got += value.length;
     // Pages serves this gzipped, so content-length is the compressed size while the
     // reader yields decompressed bytes — the ratio overshoots. Clamp it.
-    if (status) status.textContent =
-      `Loading the class library… ${Math.min(99, Math.round(got / total * 100))}%`;
+    const el = status();
+    if (el) el.textContent = `${label} ${Math.min(99, Math.round(got / total * 100))}%`;
   }
-  if (status) status.textContent = 'Reading the class library…';
+  const el = status();
+  if (el) el.textContent = `${label} unpacking…`;
   const bytes = new Uint8Array(got);
   let at = 0;
   for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-loadLibrary().then(d => {
-  DATA = d; ARTISTS = d.artists; NORM_ARTISTS = d.artists.map(norm);
-  SONGS = d.songs || [];
+function attachPlaylists(p) {
+  ARTISTS = p.artists || [];
+  NORM_ARTISTS = ARTISTS.map(norm);
+  SONGS = p.songs || [];
   NORM_TITLES = SONGS.map(sg => norm(sg[0]));
   SONG_ARTISTS = SONGS.map(sg => new Set(sg[1]));
+  const lists = p.s || [];
+  DATA.classes.forEach((c, i) => { c.s = lists[i] || []; });
+  MUSIC_READY = true;
+  if (MUSIC_PENDING) { const run = MUSIC_PENDING; MUSIC_PENDING = null; run(); }
+}
+
+download('classes.json', 'Loading classes…').then(d => {
+  DATA = d;
+  DATA.classes.forEach(c => { c.s = []; });   // filled in when the playlists arrive
   // The export interns instructors, disciplines and class types to keep the file small.
   // Swap the indices back for strings — JS shares one string object per value, so this
   // costs a pointer per class, and the rest of the page can stay index-unaware.
@@ -802,8 +827,9 @@ loadLibrary().then(d => {
   $('stamp').textContent = `${d.classes.length.toLocaleString()} classes in the library` +
     (d.catalog_total ? ` · the best-rated slice of Peloton's ${d.catalog_total.toLocaleString()}` : '') +
     (d.generated ? ` · updated ${d.generated}` : '');
-  renderControls();
+  renderControls();          // the filters work now, before the playlists arrive
   $('out').innerHTML = '';
+  return download('playlists.json', 'Loading playlists…').then(attachPlaylists);
 }).catch(() => {
   $('out').innerHTML = '<div class="status">Couldn\'t load the class library. Try reloading.</div>';
 });

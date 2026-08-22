@@ -1056,6 +1056,26 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def write_web_bundle(payload: dict, out: Path) -> None:
+    """Split the export in two so the page can render before the playlists arrive.
+
+    The filters, titles and ratings are ~35% of the bytes but everything the page needs
+    to draw itself. Playlists are the other ~65% and are only needed once someone
+    actually searches for music, so they load in the background.
+    """
+    dump = lambda o: json.dumps(o, separators=(",", ":"), ensure_ascii=False)
+    meta = {k: v for k, v in payload.items() if k not in ("artists", "songs")}
+    meta["classes"] = [{k: v for k, v in c.items() if k != "s"} for c in payload["classes"]]
+    music = {
+        "artists": payload["artists"],
+        "songs": payload["songs"],
+        # index-aligned with meta["classes"], so the two files stay in step
+        "s": [c["s"] for c in payload["classes"]],
+    }
+    out.write_text(dump(meta))
+    (out.parent / "playlists.json").write_text(dump(music))
+
+
 def cmd_export(args) -> int:
     """Build the static dataset the public web app runs on.
 
@@ -1176,11 +1196,13 @@ def cmd_export(args) -> int:
             print(f"{out} is already up to date — nothing written.")
             return 3
 
-    out.write_text(json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
+    write_web_bundle(payload, out)
     kb = out.stat().st_size / 1024
     with_songs = sum(1 for c in classes if c["s"])
-    print(f"Wrote {out} — {len(classes)} classes ({with_songs} with playlists), "
-          f"{len(song_table):,} unique songs, {len(artist_index):,} artists, {kb:,.0f} KB")
+    pl_kb = (out.parent / "playlists.json").stat().st_size / 1024
+    print(f"Wrote {out.name} ({kb:,.0f} KB) + playlists.json ({pl_kb:,.0f} KB) — "
+          f"{len(classes)} classes ({with_songs} with playlists), "
+          f"{len(song_table):,} unique songs, {len(artist_index):,} artists")
     return 0
 
 
