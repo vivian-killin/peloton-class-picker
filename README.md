@@ -10,7 +10,9 @@ There are two versions in here.
 
 Type in a few artists, songs, or genres you love. It searches a snapshot of the Peloton
 class library — about 20,000 classes and their playlists, the best-rated slice of
-Peloton's 43,000 — and ranks the ones whose music matches. Every result explains *why* it matched: which songs, by which artist you named,
+Peloton's 43,000 — and ranks the ones whose music matches. Results are ranked by how much of your list a class covers — a class with one song from
+each of three artists you named beats one that plays a single artist six times. Every
+result explains *why* it matched: how many of the things you named it hits, which songs,
 and which genre tags landed. Expanding **Full playlist** shows every track in the class,
 with the ones you asked for highlighted.
 
