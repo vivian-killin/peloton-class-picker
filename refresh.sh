@@ -7,7 +7,8 @@ set -uo pipefail
 
 PYTHON=/Library/Frameworks/Python.framework/Versions/3.13/bin/python3
 GIT=/usr/bin/git
-CATEGORIES="cycling strength pilates yoga stretching cardio running walking hiking"
+# "name:pages" — 100 classes per page, weighted toward the music-driven disciplines
+CATEGORIES="cycling:60 strength:40 running:30 yoga:20 walking:15 stretching:12 cardio:10 hiking:7 pilates:6"
 
 cd "$(dirname "$0")" || exit 1
 mkdir -p "$HOME/.peloton-picker"
@@ -26,6 +27,7 @@ echo "===== $(date '+%Y-%m-%d %H:%M:%S') ====="
 "$PYTHON" peloton_picker.py export \
   --categories $CATEGORIES \
   --pages 2 \
+  --workers 8 \
   --generated "$(date +%Y-%m-%d)" \
   --out classes.json \
   --only-if-changed

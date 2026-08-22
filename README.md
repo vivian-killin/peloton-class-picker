@@ -9,9 +9,10 @@ There are two versions in here.
 **→ https://vivian-killin.github.io/peloton-class-picker/**
 
 Type in a few artists, songs, or genres you love. It searches a snapshot of the Peloton
-class library — 1,800 classes and their playlists — and ranks the ones whose music
-matches. Every result explains *why* it matched: which songs, by which artist you named,
-and which genre tags landed.
+class library — about 20,000 classes and their playlists, the best-rated slice of
+Peloton's 43,000 — and ranks the ones whose music matches. Every result explains *why* it matched: which songs, by which artist you named,
+and which genre tags landed. Expanding **Full playlist** shows every track in the class,
+with the ones you asked for highlighted.
 
 Filters: **class type** (multi-select — pick Cycling and Pilates together), **category**
 (a sub-filter that narrows within the types you picked — Power Zone, Intervals, Barre,
@@ -28,8 +29,13 @@ Fonts are Baloo 2 and Nunito from Google Fonts.
 
 The class library is a snapshot baked into the repo (`classes.json`), not a live feed —
 Peloton's catalogue needs a member login, so a public site can't query it directly.
-**It refreshes itself every Monday morning** (see below), and the footer shows the date
-of the snapshot you're looking at.
+**It refreshes itself every Monday morning** (see below), and the footer shows the size
+and date of the snapshot you're looking at.
+
+Coverage is the point of the per-category page counts in `refresh.sh`: a query like
+"Hilary Duff and Miley Cyrus" only finds the seven classes with both if the library is
+deep enough to contain them. Raise the numbers there to go deeper, at the cost of a
+bigger download — the file is currently about 1.7 MB over the wire.
 
 ## 2. The command-line tool — your account, your history
 

@@ -197,9 +197,21 @@ select option { color:var(--on-accent) }
 .why ul { margin:0; padding-left:20px; color:var(--ink-1) }
 .why li { font-size:15px; padding:2px 0 }
 .term { font-weight:800; color:var(--yellow) }
-.songs { list-style:none; padding:0; margin:14px 0 0 }
+.playlist { margin-top:14px }
+.playlist summary {
+  cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:8px;
+  min-height:44px; color:var(--cyan-l); font:800 15px var(--body);
+}
+.playlist summary::-webkit-details-marker { display:none }
+.playlist summary::after { content:'▼'; font-size:11px }
+.playlist[open] summary::after { content:'▲' }
+.playlist summary:hover { color:var(--pink-s) }
+.songs { list-style:none; padding:0; margin:6px 0 0 }
 .songs li { padding:8px 0; border-top:1px solid rgba(255,255,255,.14); font-size:15px; color:var(--ink-1) }
 .songs .matched { color:var(--ink-4); font-size:13px }
+.songs li.hit { color:var(--ink); font-weight:700 }
+.songs li.hit .note { color:var(--yellow) }
+.songs li .note { color:var(--ink-4) }
 .card-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; align-items:center }
 .open {
   flex:1 1 200px; min-height:52px; display:flex; align-items:center; justify-content:center;
@@ -312,7 +324,7 @@ const HIDDEN_KEY = 'pcp-hidden';
 const NEON = ['#ff77c4','#7ceeff','#c6ff6b','#ffe14d','#c295ff','#ffa6d8'];
 const $ = id => document.getElementById(id);
 
-let DATA = null, ARTISTS = [], NORM_ARTISTS = [];
+let DATA = null, ARTISTS = [], NORM_ARTISTS = [], SONGS = [], NORM_TITLES = [], SONG_ARTISTS = [];
 const state = {
   disciplines: [], categories: [], durations: [], menu: null,
   results: null, total: 0, empty: null,
@@ -324,9 +336,18 @@ const state = {
 const norm = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()
   .replace(/\(.*?\)|\[.*?\]/g,' ').replace(/[^a-z0-9& ]+/g,' ')
   .replace(/^\s*the\s+/,'').replace(/\s+/g,' ').trim();
-const rx = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-const wordMatch = (hay, needle) =>
-  hay === needle || new RegExp('(^|\\s)' + rx(needle) + '(\\s|$)').test(hay);
+// Whole-word containment without building a RegExp per comparison — this runs tens of
+// thousands of times per query and regex construction dominated the search otherwise.
+function wordMatch(hay, needle) {
+  if (hay === needle) return true;
+  if (!needle) return false;
+  for (let i = hay.indexOf(needle); i !== -1; i = hay.indexOf(needle, i + 1)) {
+    const startsClean = i === 0 || hay.charCodeAt(i - 1) === 32;
+    const end = i + needle.length;
+    if (startsClean && (end === hay.length || hay.charCodeAt(end) === 32)) return true;
+  }
+  return false;
+}
 const titleCase = s => s.replace(/_/g,' ').replace(/\b\w/g, m => m.toUpperCase());
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const tagMatch = (hay, term) =>
@@ -447,36 +468,62 @@ function parseQuery(text) {
   return {required: [...new Set(required)], optional: [...new Set(optional)]};
 }
 
+const ARTIST_CACHE = new Map();
 function artistIdsFor(term) {
-  const ids = new Set();
-  NORM_ARTISTS.forEach((a, i) => {
+  let ids = ARTIST_CACHE.get(term);
+  if (ids) return ids;
+  ids = new Set();
+  for (let i = 0; i < NORM_ARTISTS.length; i++) {
+    const a = NORM_ARTISTS[i];
     if (a === term) ids.add(i);
     else if (term.length >= 5 && wordMatch(a, term)) ids.add(i);
     else if (a.length >= 5 && wordMatch(term, a)) ids.add(i);
-  });
+  }
+  ARTIST_CACHE.set(term, ids);
   return ids;
 }
 
+const SONG_CACHE = new Map();
+
+// Resolve a term against the ~40k unique songs once, rather than re-testing it against
+// every playlist entry of every class. Returns songIndex -> 'artist' | 'song'.
+function songHitsFor(term, artistIds) {
+  const cached = SONG_CACHE.get(term);
+  if (cached) return cached;
+  const how = new Map();
+  for (let i = 0; i < SONGS.length; i++) {
+    let byArtist = false;
+    for (const a of SONG_ARTISTS[i]) { if (artistIds.has(a)) { byArtist = true; break; } }
+    if (byArtist) { how.set(i, 'artist'); continue; }
+    if (term.length > 3 && NORM_TITLES[i].includes(term)) how.set(i, 'song');
+  }
+  SONG_CACHE.set(term, how);
+  return how;
+}
+
+const songLabel = i => {
+  const [title, aids] = SONGS[i];
+  return `${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ') || '?'}`;
+};
+
 function evaluate(c, terms) {
   const hits = new Map();
-  for (const [title, aids] of c.s) {
-    const nt = norm(title);
-    const label = `${title || '?'} — ${aids.map(a => ARTISTS[a]).join(', ') || '?'}`;
+  for (const si of c.s) {
     for (const t of terms) {
-      const byArtist = aids.some(a => t.ids.has(a));
-      const bySong = !byArtist && t.term.length > 3 && nt.includes(t.term);
-      if (!byArtist && !bySong) continue;
+      const how = t.songs.get(si);
+      if (!how) continue;
       if (!hits.has(t.term))
-        hits.set(t.term, {how: byArtist ? 'artist' : 'song', songs: [], artists: new Set()});
+        hits.set(t.term, {how, songs: [], songIds: new Set(), artists: new Set()});
       const h = hits.get(t.term);
-      h.songs.push(label);
-      if (byArtist) aids.filter(a => t.ids.has(a)).forEach(a => h.artists.add(ARTISTS[a]));
+      h.songs.push(songLabel(si));
+      h.songIds.add(si);
+      if (how === 'artist')
+        for (const a of SONG_ARTISTS[si]) if (t.ids.has(a)) h.artists.add(ARTISTS[a]);
     }
   }
-  const hay = norm(c.t + ' ' + c.c.join(' '));
   for (const t of terms) {
-    if (!hits.has(t.term) && tagMatch(hay, t.term))
-      hits.set(t.term, {how: 'tag', songs: [], artists: new Set()});
+    if (!hits.has(t.term) && tagMatch(c.h, t.term))
+      hits.set(t.term, {how: 'tag', songs: [], songIds: new Set(), artists: new Set()});
   }
   return hits;
 }
@@ -494,7 +541,10 @@ function runSearch({mode = 'all', useFilters = true, useMusic = true} = {}) {
   let optional = useMusic ? q.optional : [];
   if (mode === 'any') { optional = [...required, ...optional]; required = []; }
 
-  const terms = [...required, ...optional].map(t => ({term: t, ids: artistIdsFor(t)}));
+  const terms = [...required, ...optional].map(t => {
+    const ids = artistIdsFor(t);
+    return {term: t, ids, songs: songHitsFor(t, ids)};
+  });
   const f = filters();
   const out = [];
   for (const c of DATA.classes) {
@@ -542,8 +592,15 @@ function card(m, i) {
   if (c.r) badges.push(Math.round(c.r * 100) + '% liked');
   if (c.x) badges.push('difficulty ' + c.x);
   if (c.c.length) badges.push(c.c.slice(0, 2).map(shortCat).join(' · '));
-  const songs = [];
-  m.hits.forEach((h, term) => h.songs.forEach(s => songs.push({s, term})));
+  // Which playlist entries matched, and what you typed to catch them
+  const matchedBy = new Map();
+  m.hits.forEach((h, term) => h.songIds && h.songIds.forEach(si => matchedBy.set(si, term)));
+  const list = c.s.map(si => {
+    const term = matchedBy.get(si);
+    return `<li class="${term ? 'hit' : ''}">♫ ${esc(songLabel(si))}` +
+      (term ? ` <span class="matched note">· matched “${esc(disp(term))}”</span>` : '') + '</li>';
+  }).join('');
+  const nHits = matchedBy.size;
   return `<div class="card" style="--edge:${hue}aa;--hue:${hue}" data-id="${esc(c.i)}">
     <div class="card-rule"></div>
     <h2>${esc(c.t)}</h2>
@@ -551,8 +608,9 @@ function card(m, i) {
     <div class="badges">${badges.map(b => `<span class="badge">${esc(b)}</span>`).join('')}</div>
     <div class="why"><h3>Why this matched</h3>
       <ul>${reasons(m).map(x => `<li>${x}</li>`).join('')}</ul></div>
-    ${songs.length ? `<ul class="songs">${songs.slice(0, 8).map(x =>
-      `<li>♫ ${esc(x.s)} <span class="matched">· matched “${esc(disp(x.term))}”</span></li>`).join('')}</ul>` : ''}
+    ${c.s.length ? `<details class="playlist">
+      <summary>Full playlist — ${plural(c.s.length, 'song')}${nHits ? `, ${nHits} you like` : ''}</summary>
+      <ul class="songs">${list}</ul></details>` : ''}
     <div class="card-actions">
       <a class="open" target="_blank" rel="noopener"
          href="https://members.onepeloton.com/classes/${encodeURIComponent(c.f)}?modal=classDetailsModal&classId=${encodeURIComponent(c.i)}">Open in Peloton</a>
@@ -668,12 +726,52 @@ $('surprise').onclick = () => {
   show(pool.length ? [pool[Math.floor(Math.random() * pool.length)]] : [], 1);
 };
 
-fetch('classes.json').then(r => r.json()).then(d => {
+// The library is a few megabytes, so report real progress instead of a dead spinner.
+async function loadLibrary() {
+  const res = await fetch('classes.json');
+  if (!res.ok) throw new Error(res.status);
+  const total = +res.headers.get('content-length') || 0;
+  const status = $('out').querySelector('.status');
+  if (!res.body || !total) return res.json();
+  const reader = res.body.getReader();
+  const chunks = [];
+  let got = 0;
+  for (;;) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    // Pages serves this gzipped, so content-length is the compressed size while the
+    // reader yields decompressed bytes — the ratio overshoots. Clamp it.
+    if (status) status.textContent =
+      `Loading the class library… ${Math.min(99, Math.round(got / total * 100))}%`;
+  }
+  if (status) status.textContent = 'Reading the class library…';
+  const bytes = new Uint8Array(got);
+  let at = 0;
+  for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.length; }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+loadLibrary().then(d => {
   DATA = d; ARTISTS = d.artists; NORM_ARTISTS = d.artists.map(norm);
+  SONGS = d.songs || [];
+  NORM_TITLES = SONGS.map(sg => norm(sg[0]));
+  SONG_ARTISTS = SONGS.map(sg => new Set(sg[1]));
+  // The export interns instructors, disciplines and class types to keep the file small.
+  // Swap the indices back for strings — JS shares one string object per value, so this
+  // costs a pointer per class, and the rest of the page can stay index-unaware.
+  const INS = d.instructors || [], DISC = d.disciplines || [], TYPES = d.types || [];
+  if (d.format >= 3) d.classes.forEach(c => {
+    c.n = INS[c.n] || ''; c.f = DISC[c.f] || ''; c.b = DISC[c.b] || '';
+    c.c = c.c.map(i => TYPES[i]).filter(Boolean);
+  });
+  // Normalise each class's searchable text once here rather than on every query.
+  d.classes.forEach(c => { c.h = norm(c.t + ' ' + c.c.join(' ')); });
   const isel = $('instructor');
   [...new Set(d.classes.map(c => c.n).filter(Boolean))].sort()
     .forEach(v => isel.add(new Option(v, v)));
   $('stamp').textContent = `${d.classes.length.toLocaleString()} classes in the library` +
+    (d.catalog_total ? ` · the best-rated slice of Peloton's ${d.catalog_total.toLocaleString()}` : '') +
     (d.generated ? ` · updated ${d.generated}` : '');
   renderControls();
   $('out').innerHTML = `<div class="status">${state.status}</div>`;

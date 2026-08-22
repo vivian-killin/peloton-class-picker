@@ -1066,27 +1066,60 @@ def cmd_export(args) -> int:
     client = Client(verbose=args.verbose)
     conn = db()
 
-    categories = args.categories or sorted(
+    raw_categories = args.categories or sorted(
         {cfg["browse_category"] for cfg in prefs.tracks.values()})
+    # "cycling:60" asks for 60 pages of cycling; a bare name uses --pages.
+    categories = []
+    for entry in raw_categories:
+        name, _, pages = entry.partition(":")
+        categories.append((name, int(pages) if pages else args.pages))
 
     seen: dict[str, Klass] = {}
     browse: dict[str, str] = {}  # Peloton's own nav category — pilates and hiking are
-    for cat in categories:       # their own, but report a discipline of strength/walking
-        print(f"Fetching {cat}...", file=sys.stderr)
-        for k in fetch_catalog(client, cat, args.pages, "top_rated"):
+    catalog_total = 0            # their own, but report a discipline of strength/walking
+    for cat, pages in categories:
+        head = client.get("/api/v2/ride/archived", {
+            "browse_category": cat, "limit": 1, "page": 0, "sort_by": "top_rated",
+            "desc": "true", "content_format": "audio,video"})
+        catalog_total += int(head.get("total") or 0)
+        print(f"Fetching {cat} (up to {pages * 100} of {head.get('total', '?')})...",
+              file=sys.stderr)
+        for k in fetch_catalog(client, cat, pages, "top_rated"):
             if k.ride_id and k.ride_id not in seen:
                 seen[k.ride_id] = k
                 browse[k.ride_id] = cat
     print(f"{len(seen)} unique classes.", file=sys.stderr)
 
-    playlists = fetch_playlists(client, conn, list(seen))
+    playlists = fetch_playlists(client, conn, list(seen), workers=args.workers)
 
     artist_index: dict[str, int] = {}
+    song_index: dict[tuple, int] = {}
+    song_table: list = []
 
     def artist_id(name: str) -> int:
         if name not in artist_index:
             artist_index[name] = len(artist_index)
         return artist_index[name]
+
+    def song_id(title: str, artist_ids: list[int]) -> int:
+        # Peloton reuses the same tracks across thousands of classes, so one shared
+        # song table plus per-class indices is far smaller than inlining every playlist.
+        key = (title, tuple(artist_ids))
+        if key not in song_index:
+            song_index[key] = len(song_table)
+            song_table.append([title, artist_ids])
+        return song_index[key]
+
+    # Instructor names, class-type names and disciplines repeat across tens of
+    # thousands of classes; store each once and reference it by index.
+    instructor_index: dict[str, int] = {}
+    type_index: dict[str, int] = {}
+    cat_index: dict[str, int] = {}
+
+    def intern(table: dict, value: str) -> int:
+        if value not in table:
+            table[value] = len(table)
+        return table[value]
 
     classes = []
     for rid, k in seen.items():
@@ -1099,15 +1132,15 @@ def cmd_export(args) -> int:
             names = list(by_norm.values())
             if not (song.get("title") or names):
                 continue
-            songs.append([song.get("title", ""), [artist_id(n) for n in names]])
+            songs.append(song_id(song.get("title", ""), [artist_id(n) for n in names]))
         classes.append({
             "i": rid,
             "t": k.title,
-            "n": k.instructor,
+            "n": intern(instructor_index, k.instructor),
             "d": k.duration_min,
-            "f": k.discipline,
-            "b": browse.get(rid, k.discipline),
-            "c": k.class_types,
+            "f": intern(cat_index, k.discipline),
+            "b": intern(cat_index, browse.get(rid, k.discipline)),
+            "c": [intern(type_index, t) for t in k.class_types],
             "r": round(k.rating, 3),
             "x": round(k.difficulty, 1),
             "a": (datetime.fromtimestamp(k.air_time, timezone.utc).strftime("%Y-%m")
@@ -1116,9 +1149,16 @@ def cmd_export(args) -> int:
         })
 
     classes.sort(key=lambda c: (-c["r"], c["t"]))
+    keys = lambda table: [k for k, _ in sorted(table.items(), key=lambda kv: kv[1])]
     payload = {
         "generated": args.generated or "",
-        "artists": [name for name, _ in sorted(artist_index.items(), key=lambda kv: kv[1])],
+        "format": 3,
+        "catalog_total": catalog_total,
+        "artists": keys(artist_index),
+        "songs": song_table,
+        "instructors": keys(instructor_index),
+        "types": keys(type_index),
+        "disciplines": keys(cat_index),
         "classes": classes,
     }
     out = Path(args.out)
@@ -1130,7 +1170,9 @@ def cmd_export(args) -> int:
         except json.JSONDecodeError:
             old = {}
         # ignore the date stamp, or the weekly job would commit an identical file
-        if (old.get("classes"), old.get("artists")) == (payload["classes"], payload["artists"]):
+        if all(old.get(k) == payload[k] for k in
+               ("classes", "artists", "songs", "instructors", "types", "disciplines")):
+            # catalog_total drifts as Peloton publishes; it alone isn't worth a commit
             print(f"{out} is already up to date — nothing written.")
             return 3
 
@@ -1138,7 +1180,7 @@ def cmd_export(args) -> int:
     kb = out.stat().st_size / 1024
     with_songs = sum(1 for c in classes if c["s"])
     print(f"Wrote {out} — {len(classes)} classes ({with_songs} with playlists), "
-          f"{len(artist_index)} artists, {kb:,.0f} KB")
+          f"{len(song_table):,} unique songs, {len(artist_index):,} artists, {kb:,.0f} KB")
     return 0
 
 
@@ -1186,6 +1228,7 @@ def main() -> int:
     sp.add_argument("--pages", type=int, default=2, help="pages per category (100 each)")
     sp.add_argument("--categories", nargs="*")
     sp.add_argument("--generated", default="", help="date stamp to embed")
+    sp.add_argument("--workers", type=int, default=5, help="parallel playlist fetches")
     sp.add_argument("--only-if-changed", action="store_true",
                     help="exit 3 without writing if the catalogue hasn't changed")
     sp.set_defaults(func=cmd_export)
