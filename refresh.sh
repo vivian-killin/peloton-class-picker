@@ -8,7 +8,7 @@ set -uo pipefail
 PYTHON=/Library/Frameworks/Python.framework/Versions/3.13/bin/python3
 GIT=/usr/bin/git
 # "name:pages" — 100 classes per page, weighted toward the music-driven disciplines
-CATEGORIES="cycling:60 strength:40 running:30 yoga:20 walking:15 stretching:12 cardio:10 hiking:7 pilates:6"
+CATEGORIES="cycling:60 strength:40 running:30 yoga:20 walking:15 outdoor:14 stretching:12 cardio:10 hiking:7 pilates:6"
 
 cd "$(dirname "$0")" || exit 1
 mkdir -p "$HOME/.peloton-picker"
