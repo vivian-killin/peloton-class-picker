@@ -38,7 +38,7 @@
 
 body {
   margin:0; min-height:100vh; color:var(--ink);
-  padding:clamp(20px,5vw,44px) clamp(12px,4vw,20px) 90px;
+  padding:clamp(20px,5vw,44px) clamp(12px,4vw,20px) 40px;
   font:16px/1.6 var(--body);
   background-color:var(--deep-3);
   background-image:
@@ -101,7 +101,7 @@ select option { color:var(--on-accent) }
 
 .pair {
   display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));
-  gap:16px; margin-bottom:22px;
+  column-gap:16px; row-gap:22px; margin-bottom:22px;
 }
 .pair.narrow { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)) }
 
@@ -148,7 +148,8 @@ select option { color:var(--on-accent) }
 .menu-foot .done { border:0; background:var(--done-bg); color:var(--done-ink); font:800 15px var(--body) }
 
 /* ---------- selected tags ---------- */
-.tags { display:flex; flex-wrap:wrap; gap:8px; margin:-8px 0 22px }
+.tags { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 22px }
+.tags[hidden] { display:none }
 .tag-btn {
   min-height:40px; display:flex; align-items:center; gap:8px; padding:8px 14px;
   border-radius:var(--r-pill); border:2px solid var(--hue); background:var(--hue);
@@ -244,7 +245,7 @@ select option { color:var(--on-accent) }
 .empty .row button:hover { background:var(--cyan-l); color:#052a33 }
 
 /* ---------- footer ---------- */
-footer { margin-top:52px; color:var(--ink-4); font-size:13px; line-height:1.7; text-align:center }
+footer { margin-top:36px; color:var(--ink-4); font-size:13px; line-height:1.7; text-align:center }
 .foot-rule {
   height:12px; border-radius:var(--r-pill); margin:0 auto 22px; max-width:340px;
   background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.16) 0 16px,rgba(255,255,255,0) 16px 32px),
@@ -269,7 +270,7 @@ footer { margin-top:52px; color:var(--ink-4); font-size:13px; line-height:1.7; t
     <div class="field">
       <label class="l-music" for="loves">Music you love</label>
       <p class="hint">Enter artists, songs, or a theme. Separate with commas to find classes
-        with <b>any</b> of them, or use <b>and</b> to require all of them up to 4.
+        with any of them, or use <b>and</b> to require all of them up to 4.
         The results will rank by coverage!</p>
       <textarea id="loves" placeholder="Shake It Off, Jonas Brothers, Hilary Duff, 2010s Disney"></textarea>
     </div>
@@ -313,8 +314,7 @@ footer { margin-top:52px; color:var(--ink-4); font-size:13px; line-height:1.7; t
     <div class="foot-rule"></div>
     <p class="stamp" id="stamp">Loading the class library…</p>
     <p>An unofficial hobby project, not affiliated with or endorsed by Peloton.
-      Class and playlist details belong to Peloton. Everything here runs in your browser —
-      no account, no tracking, no data leaves this page.<br>
+      Class and playlist details belong to Peloton.<br>
       <a href="https://github.com/vivian-killin/peloton-class-picker">Source on GitHub</a></p>
   </footer>
 </div>
@@ -328,7 +328,6 @@ let DATA = null, ARTISTS = [], NORM_ARTISTS = [], SONGS = [], NORM_TITLES = [], 
 const state = {
   disciplines: [], categories: [], durations: [], menu: null,
   results: null, total: 0, empty: null,
-  status: 'Tell it what you like, then hit Find my classes.',
   hidden: new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')),
 };
 
@@ -794,7 +793,7 @@ loadLibrary().then(d => {
     (d.catalog_total ? ` · the best-rated slice of Peloton's ${d.catalog_total.toLocaleString()}` : '') +
     (d.generated ? ` · updated ${d.generated}` : '');
   renderControls();
-  $('out').innerHTML = `<div class="status">${state.status}</div>`;
+  $('out').innerHTML = '';
 }).catch(() => {
   $('out').innerHTML = '<div class="status">Couldn\'t load the class library. Try reloading.</div>';
 });
