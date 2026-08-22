@@ -18,8 +18,13 @@ Filters: **class type** (multi-select — pick Cycling and Pilates together), **
 Full Body, and so on), **length**, and **instructor**. "Surprise me" picks one at random
 from the top matches.
 
-It's a single static page. Everything runs in your browser: no account, no server, no
-data leaves the page. Classes you mark "Done / hide" are remembered in your browser only.
+It's a single static page — one `index.html`, plain CSS custom properties, vanilla DOM JS,
+no build step. Everything runs in your browser: no account, no server, no data leaves the
+page. Classes you mark "Done / hide" are remembered in your browser only.
+
+The holographic look is built from the `design_handoff_neon_picker` spec (Claude Design):
+original CSS gradients and text glyphs only — no images, no icon set, no Peloton branding.
+Fonts are Baloo 2 and Nunito from Google Fonts.
 
 The class library is a snapshot baked into the repo (`classes.json`), not a live feed —
 Peloton's catalogue needs a member login, so a public site can't query it directly.
